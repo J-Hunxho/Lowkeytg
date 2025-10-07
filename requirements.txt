@@ -1,6 +1,6 @@
 python-telegram-bot==20.0
 flask
-import os
+import stripe
 import threading
 import sqlite3
 import json
