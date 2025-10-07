@@ -1,14 +1,4 @@
 
-import os
-import threading
-import sqlite3
-import json
-import time
-from uuid import uuid4
-from flask import Flask, request, jsonify, abort
-import requests
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
 # --- CONFIG (from env) ---
 BOT_TOKEN = os.getenv("BOT_TOKEN")
