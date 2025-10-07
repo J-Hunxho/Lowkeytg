@@ -1,27 +1,4 @@
-# lowkeytgbot.pyfrom flask import Flask, request
 
-app = Flask(__name__)
-stripe.api_key = "sk_live_..."  # your secret key
-
-@app.route('/webhook', methods=['POST'])
-def stripe_webhook():
-    payload = request.get_data(as_text=True)
-    sig_header = request.headers.get('Stripe-Signature')
-    endpoint_secret = "whsec_..."  # your Stripe webhook signing secret
-    try:
-        event = stripe.Webhook.construct_event(payload, sig_header, endpoint_secret)
-        # handle event
-    except ValueError:
-        return 'Invalid payload', 400
-    except stripe.error.SignatureVerificationError:
-        return 'Invalid signature', 400
-
-    # Example event handling
-    if event['type'] == 'payment_intent.succeeded':
-        print('💰 Payment succeeded!')
-        # trigger Telegram message or access delivery
-
-    return '', 200
 import os
 import threading
 import sqlite3
