@@ -5,8 +5,8 @@ threading
 sqlite3
 json
 time
- uuid import uuid4
- flask import Flask, request, jsonify, abort
+ uuid 
+ flask 
  requests
-telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
- telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
+telegram 
+ telegram.ext 
