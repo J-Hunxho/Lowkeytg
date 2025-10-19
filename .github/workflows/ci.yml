@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: ["main", "master"]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: astral-sh/uv-action@v1
+        with:
+          enable-cache: true
+      - name: Install dependencies
+        run: uv pip install -r requirements.txt
+        working-directory: elite-telegram-bot
+      - name: Lint
+        run: uv run ruff check src tests
+        working-directory: elite-telegram-bot
+      - name: Type check
+        run: uv run mypy src
+        working-directory: elite-telegram-bot
+      - name: Tests
+        run: uv run pytest -q
+        working-directory: elite-telegram-bot
