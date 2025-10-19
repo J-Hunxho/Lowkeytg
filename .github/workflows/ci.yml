@@ -11,6 +11,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+       name: Update Conda env
+  run: conda env update --file environment.yml --name base
+  working-directory: elite-telegram-bot
+
       # uv also installs Python; no need for actions/setup-python
       - uses: astral-sh/setup-uv@v7
         with:
