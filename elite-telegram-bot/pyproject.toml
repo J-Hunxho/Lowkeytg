@@ -3,7 +3,7 @@ name = "elite-telegram-bot"
 version = "0.1.0"
 description = "Production-ready Telegram bot with FastAPI webhook surface, Stripe Checkout, and Railway deployment."
 readme = "README.md"
-requires-python = ">=3.11,<3.12"
+requires-python = ">=3.11"
 authors = [
   { name = "Hunxho Codex Engineering" }
 ]
@@ -37,6 +37,9 @@ dev = [
   "types-requests",
   "types-python-dateutil"
 ]
+
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [tool.uv]
 managed = true
