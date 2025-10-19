@@ -47,11 +47,12 @@ async def test_order_repository(session: AsyncSession) -> None:
         sku="founder_key",
         price_id="price_123",
         stripe_checkout_id="cs_test",
-        metadata={"foo": "bar"},
+        metadata_json={"foo": "bar"},
     )
     await session.commit()
 
     fetched = await orders_repo.get_by_checkout_id("cs_test")
     assert fetched is not None
+    assert order.metadata_json == {"foo": "bar"}
     await orders_repo.mark_paid(fetched, payment_intent="pi_test")
     assert fetched.status == "paid"

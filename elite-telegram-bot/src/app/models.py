@@ -20,7 +20,9 @@ class User(Base):
     language_code: Mapped[Optional[str]] = mapped_column(String(10))
     is_admin: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
     referral_code: Mapped[str] = mapped_column(String(64), unique=True)
     referred_by_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
     referral_count: Mapped[int] = mapped_column(Integer, default=0)
@@ -60,7 +62,7 @@ class Order(Base):
     status: Mapped[str] = mapped_column(String(32), default="pending")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     paid_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
-    metadata: Mapped[Optional[dict]] = mapped_column(JSON)
+    metadata_json: Mapped[Optional[dict]] = mapped_column("metadata", JSON)
 
     user: Mapped[User] = relationship("User", back_populates="orders")
 

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from typing import Any, Awaitable, Callable, Dict
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 from aiogram import BaseMiddleware
-from aiogram.exceptions import CancelHandler
 from aiogram.types import Message, TelegramObject
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,11 +12,11 @@ from ..repos.bans import BanRepository
 from ..repos.users import UserRepository
 from ..services.rate_limit import RateLimiter
 
-Handler = Callable[[TelegramObject, Dict[str, Any]], Awaitable[Any]]
+Handler = Callable[[TelegramObject, dict[str, Any]], Awaitable[Any]]
 
 
 class UserContextMiddleware(BaseMiddleware):
-    async def __call__(self, handler: Handler, event: TelegramObject, data: Dict[str, Any]) -> Any:
+    async def __call__(self, handler: Handler, event: TelegramObject, data: dict[str, Any]) -> Any:
         session: AsyncSession | None = data.get("session")
         telegram_user = getattr(event, "from_user", None)
         if not session or telegram_user is None:
@@ -35,7 +35,7 @@ class UserContextMiddleware(BaseMiddleware):
 
 
 class BanMiddleware(BaseMiddleware):
-    async def __call__(self, handler: Handler, event: TelegramObject, data: Dict[str, Any]) -> Any:
+    async def __call__(self, handler: Handler, event: TelegramObject, data: dict[str, Any]) -> Any:
         session: AsyncSession | None = data.get("session")
         user = data.get("user")
         bot = data.get("bot")
@@ -45,8 +45,11 @@ class BanMiddleware(BaseMiddleware):
         ban = await repo.get_by_user_id(user.id)
         if ban:
             if bot and isinstance(event, Message):
-                await bot.send_message(chat_id=user.telegram_id, text="You are banned from using this bot.")
-            raise CancelHandler()
+                await bot.send_message(
+                    chat_id=user.telegram_id,
+                    text="You are banned from using this bot.",
+                )
+            return None
         return await handler(event, data)
 
 
@@ -54,7 +57,7 @@ class RateLimitMiddleware(BaseMiddleware):
     def __init__(self, limiter: RateLimiter) -> None:
         self.limiter = limiter
 
-    async def __call__(self, handler: Handler, event: TelegramObject, data: Dict[str, Any]) -> Any:
+    async def __call__(self, handler: Handler, event: TelegramObject, data: dict[str, Any]) -> Any:
         user = data.get("user")
         bot = data.get("bot")
         data.setdefault("rate_limiter", self.limiter)
@@ -63,6 +66,9 @@ class RateLimitMiddleware(BaseMiddleware):
         allowed = await self.limiter.allow_user(user.telegram_id, "messages", limit=20, window_seconds=30)
         if not allowed:
             if bot and isinstance(event, Message):
-                await bot.send_message(chat_id=user.telegram_id, text="Slow down — you are sending messages too quickly.")
-            raise CancelHandler()
+                await bot.send_message(
+                    chat_id=user.telegram_id,
+                    text="Slow down — you are sending messages too quickly.",
+                )
+            return None
         return await handler(event, data)
