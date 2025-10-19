@@ -10,21 +10,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
+
+      # uv also installs Python; no need for actions/setup-python
       - uses: astral-sh/setup-uv@v7
         with:
+          python-version: "3.11"
           enable-cache: true
+
+      - name: Create venv
+        run: uv venv
+        working-directory: elite-telegram-bot
+
       - name: Install dependencies
         run: uv pip install -r requirements.txt
         working-directory: elite-telegram-bot
+
       - name: Lint
         run: uv run ruff check src tests
         working-directory: elite-telegram-bot
+
       - name: Type check
         run: uv run mypy src
         working-directory: elite-telegram-bot
+
       - name: Tests
         run: uv run pytest -q
         working-directory: elite-telegram-bot
