@@ -99,7 +99,7 @@ make webhook\:set
 1. Create a new Railway project and select “Deploy from GitHub”.
 2. Add all environment variables from `.env.example`.
 3. Railway auto-assigns a public domain; set `PUBLIC_BASE_URL` to `https://<project>.up.railway.app` (or custom domain).
-4. Deploy. On startup the app sets the Telegram webhook if `SET_WEBHOOK_ON_START=true`.
+4. Deploy. Railway executes `./start.sh`, which runs migrations (unless `SKIP_MIGRATIONS=1`) before booting Uvicorn. On startup the app sets the Telegram webhook if `SET_WEBHOOK_ON_START=true`.
 5. Verify `/healthz`, then send a Telegram message to confirm the webhook handles updates.
 6. Process a test Stripe payment to ensure fulfillment.
 

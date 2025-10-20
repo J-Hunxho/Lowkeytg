@@ -4,6 +4,7 @@
   },
   "deploy": {
     "healthcheckPath": "/healthz",
-    "restartPolicyType": "ON_FAILURE"
+    "restartPolicyType": "ON_FAILURE",
+    "startCommand": "./start.sh"
   }
 }
