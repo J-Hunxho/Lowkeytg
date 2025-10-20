@@ -23,13 +23,18 @@ async def _create_checkout(user: User, session: AsyncSession, sku: str) -> Optio
     success_url = f"{settings.public_base_url}/payments/success"
     cancel_url = f"{settings.public_base_url}/payments/cancel"
     try:
-        return await service.create_checkout_session(user=user, sku=sku, success_url=success_url, cancel_url=cancel_url)
+        return await service.create_checkout_session(
+            user=user,
+            sku=sku,
+            success_url=success_url,
+            cancel_url=cancel_url,
+        )
     except ValueError:
         return None
 
 
 @router.message(Command("buy"))
-async def cmd_buy(message: Message, command: CommandObject, session: AsyncSession, user: User) -> None:
+async def cmd_buy(message: Message, command: CommandObject | None, session: AsyncSession, user: User) -> None:
     sku = command.args.strip() if command and command.args else ""
     if not sku:
         await message.answer("Provide a SKU. Usage: /buy <sku>")
@@ -40,12 +45,16 @@ async def cmd_buy(message: Message, command: CommandObject, session: AsyncSessio
         return
     await message.answer(
         text=escape_markdown_v2("Checkout ready."),
+        parse_mode="MarkdownV2",
         reply_markup=checkout_keyboard(checkout["url"]),
     )
 
 
 @router.callback_query(lambda q: q.data and q.data.startswith("buy:"))
 async def cb_buy(callback: CallbackQuery, session: AsyncSession, user: User) -> None:
+    if not callback.data:
+        await callback.answer("Invalid request", show_alert=True)
+        return
     sku = callback.data.split(":", 1)[1]
     checkout = await _create_checkout(user, session, sku)
     if not checkout:
@@ -65,9 +74,5 @@ async def cmd_orders(message: Message, session: AsyncSession, user: User) -> Non
     if not orders:
         await message.answer("No orders yet.")
         return
-    lines = [
-        f"• {order.sku} — {order.status}"
-        for order in orders
-    ]
-    await message.answer(escape_markdown_v2("
-".join(lines)))
+    lines = [f"• {order.sku} — {order.status}" for order in orders]
+    await message.answer(escape_markdown_v2("\n".join(lines)), parse_mode="MarkdownV2")

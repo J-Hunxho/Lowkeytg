@@ -38,15 +38,12 @@ async def cmd_stats(message: Message, session: AsyncSession, user: User) -> None
     total_referrals = await session.scalar(select(func.count()).select_from(Referral))
     total_messages = await session.scalar(select(func.count()).select_from(MessageRecord))
     text = (
-        f"Users: {total_users}
-"
-        f"Orders: {total_orders}
-"
-        f"Referrals: {total_referrals}
-"
+        f"Users: {total_users}\n"
+        f"Orders: {total_orders}\n"
+        f"Referrals: {total_referrals}\n"
         f"Messages logged: {total_messages}"
     )
-    await message.answer(escape_markdown_v2(text))
+    await message.answer(escape_markdown_v2(text), parse_mode="MarkdownV2")
 
 
 @router.message(Command("broadcast"))

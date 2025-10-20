@@ -54,7 +54,7 @@ class PaymentsService:
             sku=sku,
             price_id=price_id,
             stripe_checkout_id=session["id"],
-            metadata=metadata,
+            metadata_json=metadata,
             status="pending",
         )
 
@@ -84,7 +84,7 @@ class PaymentsService:
     async def _notify_user(self, order: Order, message: str) -> None:
         if not self.bot:
             return
-        telegram_id = order.metadata.get("telegram_id") if order.metadata else None
+        telegram_id = order.metadata_json.get("telegram_id") if order.metadata_json else None
         if not telegram_id:
             return
         await self.bot.send_message(chat_id=int(telegram_id), text=message)

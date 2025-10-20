@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from json import JSONDecodeError
 
 import stripe
 from aiogram import Bot, Dispatcher
@@ -15,8 +16,8 @@ from ..logging import configure_logging, logger
 from ..schemas import CheckoutSessionRequest, CheckoutSessionResponse, HealthResponse
 from ..services.payments import PaymentsService
 from ..services.rate_limit import RateLimiter
-from .deps import get_bot, get_db_session, get_dispatcher, get_rate_limiter
 from ..bot.main import bot as bot_instance
+from .deps import get_bot, get_db_session, get_dispatcher, get_rate_limiter
 
 configure_logging()
 app = FastAPI(title="Elite Telegram Bot", version="0.1.0")
@@ -54,11 +55,24 @@ async def telegram_webhook(
         logger.warning("telegram_webhook.invalid_secret", provided=secret_token)
         raise HTTPException(status_code=401, detail="Invalid secret token")
 
-       body = await request.body()
     if not await rate_limiter.allow_global("telegram", limit=300, window_seconds=1):
         raise HTTPException(status_code=429, detail="Too many updates")
 
-    data = json.loads(body)
+    try:
+        body_bytes = await request.body()
+    except Exception as exc:  # pragma: no cover - unexpected I/O failure
+        logger.exception("telegram_webhook.read_failed", error=str(exc))
+        raise HTTPException(status_code=400, detail="Invalid request body") from exc
+
+    if not body_bytes:
+        return JSONResponse({"ok": True})
+
+    try:
+        data = json.loads(body_bytes.decode("utf-8"))
+    except (UnicodeDecodeError, JSONDecodeError) as exc:
+        logger.warning("telegram_webhook.invalid_payload", error=str(exc))
+        raise HTTPException(status_code=400, detail="Malformed update payload") from exc
+
     update = Update.model_validate(data)
     try:
         await dispatcher.feed_webhook_update(
@@ -66,6 +80,9 @@ async def telegram_webhook(
             update=update,
             data={"session": session, "rate_limiter": rate_limiter},
         )
+    except TelegramBadRequest as exc:
+        logger.warning("telegram_webhook.bad_request", error=str(exc))
+        raise HTTPException(status_code=400, detail="Invalid update payload") from exc
     except Exception as exc:
         logger.exception("telegram_webhook.error", error=str(exc))
         raise HTTPException(status_code=500, detail="Failed to process update") from exc

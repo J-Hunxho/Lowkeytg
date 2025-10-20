@@ -4,6 +4,7 @@ from typing import Optional
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.session.aiohttp import AiohttpSession
+from aiogram.client.default import DefaultBotProperties
 
 from ..config import settings
 from ..services.rate_limit import RateLimiter
@@ -18,7 +19,11 @@ except ImportError:  # pragma: no cover
 
 def create_bot() -> Bot:
     session = AiohttpSession()
-    return Bot(token=settings.telegram_bot_token.get_secret_value(), session=session, parse_mode="MarkdownV2")
+    return Bot(
+        token=settings.telegram_bot_token.get_secret_value(),
+        session=session,
+        default=DefaultBotProperties(parse_mode="MarkdownV2"),
+    )
 
 
 def _build_rate_limiter() -> RateLimiter:

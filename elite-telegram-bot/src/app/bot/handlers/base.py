@@ -15,17 +15,22 @@ router = Router(name="base")
 
 
 @router.message(CommandStart())
-async def cmd_start(message: Message, command: CommandObject | None, session: AsyncSession, user: User) -> None:
+async def cmd_start(
+    message: Message,
+    command: CommandObject | None,
+    session: AsyncSession,
+    user: User,
+) -> None:
     referral_code = command.args if command else None
     service = ReferralService(session)
     await service.process_referral(user, referral_code)
 
+    display_name = escape_markdown_v2(user.first_name or user.username or "friend")
     welcome = (
-        f"Welcome, {escape_markdown_v2(user.first_name or user.username or 'friend')}!
-"
+        f"Welcome, {display_name}!\n"
         "Use /help to explore commands."
     )
-    await message.answer(welcome)
+    await message.answer(welcome, parse_mode="MarkdownV2")
 
 
 @router.message(Command("help"))
@@ -41,11 +46,15 @@ async def cmd_help(message: Message, user: User) -> None:
         "/orders",
     ]
     if user.is_admin:
-        commands.extend(["/admin", "/stats", "/broadcast <message>", "/ban <user_id>", "/unban <user_id>"])
-    text = "Available commands:
-" + "
-".join(commands)
-    await message.answer(escape_markdown_v2(text))
+        commands.extend([
+            "/admin",
+            "/stats",
+            "/broadcast <message>",
+            "/ban <user_id>",
+            "/unban <user_id>",
+        ])
+    text = "Available commands:\n" + "\n".join(commands)
+    await message.answer(escape_markdown_v2(text), parse_mode="MarkdownV2")
 
 
 @router.message(Command("ping"))
@@ -56,23 +65,19 @@ async def cmd_ping(message: Message) -> None:
 @router.message(Command("about"))
 async def cmd_about(message: Message) -> None:
     about = (
-        "Elite Telegram bot crafted by Hunxho Codex Engineering.
-"
+        "Elite Telegram bot crafted by Hunxho Codex Engineering.\n"
         "Powered by aiogram, FastAPI, and Stripe Checkout."
     )
-    await message.answer(escape_markdown_v2(about))
+    await message.answer(escape_markdown_v2(about), parse_mode="MarkdownV2")
 
 
 @router.message(Command("profile"))
 async def cmd_profile(message: Message, user: User) -> None:
     link = f"https://t.me/{settings.telegram_bot_username}?start={user.referral_code}"
     text = (
-        f"👤 Profile for {escape_markdown_v2(user.first_name or user.username or str(user.telegram_id))}
-"
-        f"Referral code: `{user.referral_code}`
-"
-        f"Referral link: {escape_markdown_v2(link)}
-"
+        f"👤 Profile for {escape_markdown_v2(user.first_name or user.username or str(user.telegram_id))}\n"
+        f"Referral code: `{escape_markdown_v2(user.referral_code)}`\n"
+        f"Referral link: {escape_markdown_v2(link)}\n"
         f"Referrals: *{user.referral_count}*"
     )
     await message.answer(text, parse_mode="MarkdownV2", reply_markup=referral_keyboard(user.referral_code))
