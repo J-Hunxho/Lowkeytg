@@ -47,14 +47,16 @@ async def telegram_webhook(
     dispatcher: Dispatcher = Depends(get_dispatcher),
     session: AsyncSession = Depends(get_db_session),
     rate_limiter: RateLimiter = Depends(get_rate_limiter),
-    secret_token: str | None = Header(default=None, alias="X-Telegram-Bot-Api-Secret-Token"),
+    secret_token: str | None = Header(
+        default=None, alias="X-Telegram-Bot-Api-Secret-Token"
+    ),
 ) -> JSONResponse:
     expected = settings.telegram_webhook_secret_token.get_secret_value()
     if secret_token != expected:
         logger.warning("telegram_webhook.invalid_secret", provided=secret_token)
         raise HTTPException(status_code=401, detail="Invalid secret token")
 
-       body = await request.body()
+    body = await request.body()
     if not await rate_limiter.allow_global("telegram", limit=300, window_seconds=1):
         raise HTTPException(status_code=429, detail="Too many updates")
 
@@ -116,4 +118,6 @@ async def create_checkout_session(
         success_url=payload.success_url,
         cancel_url=payload.cancel_url,
     )
-    return CheckoutSessionResponse(url=checkout["url"], session_id=checkout["session_id"])
+    return CheckoutSessionResponse(
+        url=checkout["url"], session_id=checkout["session_id"]
+    )
