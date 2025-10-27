@@ -58,7 +58,7 @@ async def telegram_webhook(
     if not await rate_limiter.allow_global("telegram", limit=300, window_seconds=1):
         raise HTTPException(status_code=429, detail="Too many updates")
 
-    data = json.loads(body)
+       data = json.loads(body)
     update = Update.model_validate(data)
     try:
         await dispatcher.feed_webhook_update(
