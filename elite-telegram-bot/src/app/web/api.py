@@ -54,14 +54,14 @@ async def telegram_webhook(
         logger.warning("telegram_webhook.invalid_secret", provided=secret_token)
         raise HTTPException(status_code=401, detail="Invalid secret token")
 
-       body = await request.body()
+body = await request.body()
     if not await rate_limiter.allow_global("telegram", limit=300, window_seconds=1):
-        raise HTTPException(status_code=429, detail="Too many updates")
+    raise HTTPException(status_code=429, detail="Too many updates")
 
-       data = json.loads(body)
+data = json.loads(body)
     update = Update.model_validate(data)
     try:
-        await dispatcher.feed_webhook_update(
+    await dispatcher.feed_webhook_update(
             bot=bot,
             update=update,
             data={"session": session, "rate_limiter": rate_limiter},
