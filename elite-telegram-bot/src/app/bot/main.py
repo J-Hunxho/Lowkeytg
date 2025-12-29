@@ -55,9 +55,9 @@ def create_dispatcher(rate_limiter: Optional[RateLimiter] = None) -> Dispatcher:
 
     return dp
 
-threading.Thread(target=start_health_server, daemon=True).start()
 
 bot = create_bot()
 rate_limiter = _build_rate_limiter()
 dispatcher = create_dispatcher(rate_limiter)
 
+threading.Thread(target=start_health_server, daemon=True).start()
