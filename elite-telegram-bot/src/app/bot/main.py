@@ -1,3 +1,7 @@
+from flask import Flask
+import os
+import threading
+
 from __future__ import annotations
 
 from typing import Optional
@@ -15,6 +19,16 @@ try:
 except ImportError:  # pragma: no cover
     Redis = None  # type: ignore
 
+app = Flask(__name__)
+
+@app.route("/healthz")
+def healthz():
+    return "ok", 200
+
+
+def start_health_server():
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host="0.0.0.0", port=port)
 
 def create_bot() -> Bot:
     session = AiohttpSession()
@@ -41,6 +55,7 @@ def create_dispatcher(rate_limiter: Optional[RateLimiter] = None) -> Dispatcher:
 
     return dp
 
+threading.Thread(target=start_health_server, daemon=True).start()
 
 bot = create_bot()
 rate_limiter = _build_rate_limiter()
