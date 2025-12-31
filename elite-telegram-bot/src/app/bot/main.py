@@ -62,15 +62,10 @@ dispatcher = create_dispatcher(rate_limiter)
 
 threading.Thread(target=start_health_server, daemon=True).start()
 
-import express from "express";
+from fastapi import FastAPI
 
-const app = express();
+app = FastAPI()
 
-app.get("/", (req, res) => {
-  res.status(200).send("OK");
-});
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Health check server running on ${PORT}`);
-});
+@app.get("/")
+def health():
+    return {"status": "ok"}
