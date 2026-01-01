@@ -1,9 +1,5 @@
-{
-  "build": {
-    "builder": "NIXPACKS"
-  },
-  "deploy": {
-    "healthcheckPath": "/healthz",
-    "restartPolicyType": "ON_FAILURE"
-  }
-}
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+startCommand = "hypercorn main:app --bind \"[::]:$PORT\""
