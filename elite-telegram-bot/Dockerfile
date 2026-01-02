@@ -7,7 +7,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 # ---- Workdir ----
-WORKDIR /app
+WORKDIR src/app/bot
 
 # ---- Python deps ----
 COPY requirements.txt .
