@@ -7,7 +7,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 # ---- Workdir ----
-WORKDIR src/app/bot
+WORKDIR elite-telegram-bot
 
 # ---- Python deps ----
 COPY requirements.txt .
