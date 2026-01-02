@@ -28,5 +28,8 @@ COPY --from=builder /install /usr/local
 COPY . .
 
 
-CMD ["uvicorn", "src.app.web.api:app", "--host", "0.0.0.0", "--port", "8080"]
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]
 
