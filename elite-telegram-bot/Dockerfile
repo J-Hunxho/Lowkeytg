@@ -27,6 +27,5 @@ WORKDIR /app
 COPY --from=builder /install /usr/local
 COPY . .
 
-CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT}"]
 
 CMD uvicorn src.app.web.api:app --host 0.0.0.0 --port ${PORT:-8080}
