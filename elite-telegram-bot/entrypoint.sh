@@ -1,8 +1,8 @@
 #!/bin/sh
-set -e
-
-echo "Starting app on port ${PORT}"
-
+set -x
+echo "PORT is $PORT"
 exec uvicorn src.app.web.api:app \
   --host 0.0.0.0 \
-  --port "${PORT}"
+  --port "$PORT" \
+  --log-level debug \
+  --lifespan off
