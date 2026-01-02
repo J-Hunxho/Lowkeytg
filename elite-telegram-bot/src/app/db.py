@@ -1,35 +1,25 @@
-from __future__ import annotations
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
+from sqlalchemy.orm import declarative_base, sessionmaker
 
-from contextlib import asynccontextmanager
-from typing import AsyncIterator
+from .config import get_settings
 
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.orm import DeclarativeBase
+Base = declarative_base()
 
-from .config import settings
+_settings = get_settings()
 
+engine: AsyncEngine = create_async_engine(
+    _settings.database_url,
+    echo=False,
+    future=True,
+)
 
-class Base(DeclarativeBase):
-    pass
-
-
-engine: AsyncEngine = create_async_engine(settings.database_url, echo=False, future=True)
-SessionLocal = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)
-
-
-@asynccontextmanager
-async def session_scope() -> AsyncIterator[AsyncSession]:
-    session = SessionLocal()
-    try:
-        yield session
-        await session.commit()
-    except Exception:
-        await session.rollback()
-        raise
-    finally:
-        await session.close()
+AsyncSessionLocal = sessionmaker(
+    engine,
+    expire_on_commit=False,
+    class_=AsyncSession,
+)
 
 
-async def get_session() -> AsyncIterator[AsyncSession]:
-    async with session_scope() as session:
+async def get_db() -> AsyncSession:
+    async with AsyncSessionLocal() as session:
         yield session
