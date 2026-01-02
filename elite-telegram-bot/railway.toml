@@ -1,6 +1,8 @@
 [build]
 builder = "DOCKERFILE"
 
+
 [deploy]
 healthcheckPath = "/healthz"
+healthcheckPort = 8080
 restartPolicyType = "ON_FAILURE"
