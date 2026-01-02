@@ -1,12 +1,8 @@
-# syntax=docker/dockerfile:1.6
 
-########################
-# Builder
 ########################
 FROM python:3.11-slim AS builder
 
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
 
 WORKDIR /app
 
@@ -24,15 +20,12 @@ RUN pip install --upgrade pip \
 ########################
 FROM python:3.11-slim
 
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    ENV PYTHONPATH=/app/src
+ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/app/src
 
 WORKDIR /app
 
 COPY --from=builder /install /usr/local
 COPY . .
 
-# Railway injects PORT at runtime
 CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT}"]
 
