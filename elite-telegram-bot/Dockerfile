@@ -20,4 +20,8 @@ COPY . .
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
+EXPOSE 8000
+CMD ["python", "run.py"]
+
+
 ENTRYPOINT ["/bin/sh", "/entrypoint.sh"]
