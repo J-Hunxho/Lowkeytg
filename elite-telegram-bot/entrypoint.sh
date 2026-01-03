@@ -1,8 +1,7 @@
 #!/bin/sh
 set -e
 
-PORT=8080
-echo "Starting on port ${PORT}"
+echo "Starting FastAPI on port 8080"
 
 exec uvicorn src.app.web.api:app \
   --host 0.0.0.0 \
