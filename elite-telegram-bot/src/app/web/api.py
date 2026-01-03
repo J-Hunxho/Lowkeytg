@@ -63,6 +63,12 @@ async def on_startup() -> None:
 # ─────────────────────────────────────────────────────────────
 # HEALTH
 # ─────────────────────────────────────────────────────────────
+from .db import close_engine
+
+@app.on_event("shutdown")
+async def shutdown():
+    await close_engine()
+
 @app.get("/", response_model=HealthResponse)
 async def root() -> HealthResponse:
     return HealthResponse()
