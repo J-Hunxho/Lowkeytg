@@ -7,7 +7,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 # ---- Workdir ----
-WORKDIR elite-telegram-bot/src/app/bot
+WORKDIR /app
 
 # ---- Python deps ----
 COPY requirements.txt .
@@ -20,8 +20,6 @@ COPY . .
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-EXPOSE 8000
-CMD ["python", "run.py"]
-
+EXPOSE 8080
 
 ENTRYPOINT ["/bin/sh", "/entrypoint.sh"]
