@@ -25,13 +25,14 @@ from .deps import (
     get_dispatcher,
     get_rate_limiter,
 )
+from ..db import close_engine
 
 configure_logging()
 
 app = FastAPI(title="Elite Telegram Bot", version="0.1.0")
 
 # ─────────────────────────────────────────────────────────────
-# STARTUP
+# STARTUP / SHUTDOWN
 # ─────────────────────────────────────────────────────────────
 @app.on_event("startup")
 async def on_startup() -> None:
@@ -60,15 +61,15 @@ async def on_startup() -> None:
         logger.warning("startup.webhook_failed", error=str(exc))
 
 
+@app.on_event("shutdown")
+async def on_shutdown() -> None:
+    await close_engine()
+    logger.info("shutdown.complete")
+
+
 # ─────────────────────────────────────────────────────────────
 # HEALTH
 # ─────────────────────────────────────────────────────────────
-from .db import close_engine
-
-@app.on_event("shutdown")
-async def shutdown():
-    await close_engine()
-
 @app.get("/", response_model=HealthResponse)
 async def root() -> HealthResponse:
     return HealthResponse()
