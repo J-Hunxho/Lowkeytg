@@ -11,7 +11,7 @@ WORKDIR /app
 
 # ---- Python deps ----
 COPY pyproject.toml .
-RUN pip install --no-cache-dir .
+RUN pip install --no-cache-dir -r requirements.txt
 # ---- App code ----
 COPY . .
 
