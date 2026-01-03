@@ -10,9 +10,8 @@ RUN apt-get update \
 WORKDIR /app
 
 # ---- Python deps ----
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
+COPY pyproject.toml .
+RUN pip install --no-cache-dir .
 # ---- App code ----
 COPY . .
 
