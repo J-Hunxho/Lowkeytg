@@ -1,14 +1,18 @@
 [project]
 name = "elite-telegram-bot"
 version = "0.1.0"
-description = "Production-ready Telegram bot with FastAPI webhook surface, Stripe Checkout, and Railway deployment."
+description = "Canonical bot engine powering Bot the Builder: Telegram, FastAPI, Stripe, and automated deployment."
 readme = "README.md"
 requires-python = ">=3.11"
+
 authors = [
   { name = "Hunxho Codex Engineering" }
 ]
+
 license = { text = "MIT" }
+
 dependencies = [
+  # ─── Core Runtime (Sacred)
   "aiogram>=3.4.1",
   "fastapi>=0.111.0",
   "uvicorn[standard]>=0.29.0",
@@ -16,18 +20,25 @@ dependencies = [
   "alembic>=1.13.1",
   "pydantic>=2.7.0",
   "pydantic-settings>=2.2.1",
+
+  # ─── Payments / Infra
   "stripe>=11.0.0",
   "redis>=5.0.3",
-  "python-dotenv>=1.0.1",
+
+  # ─── HTTP / Async
   "aiohttp>=3.9.5",
   "httpx>=0.27.0",
-  "opentelemetry-api>=1.24.0",
-  "opentelemetry-sdk>=1.24.0",
+
+  # ─── Reliability
+  "tenacity>=8.2.3",
+
+  # ─── Observability (Optional, Tiered)
   "structlog>=24.1.0",
-  "tenacity>=8.2.3"
 ]
 
 [project.optional-dependencies]
+
+# ─── Developer Experience
 dev = [
   "pytest>=8.2.0",
   "pytest-asyncio>=0.23.6",
@@ -35,7 +46,18 @@ dev = [
   "mypy>=1.10.0",
   "types-redis",
   "types-requests",
-  "types-python-dateutil"
+  "types-python-dateutil",
+]
+
+# ─── Observability / Enterprise Tier
+observability = [
+  "opentelemetry-api>=1.24.0",
+  "opentelemetry-sdk>=1.24.0",
+]
+
+# ─── Platform / Automation
+platform = [
+  "python-dotenv>=1.0.1",
 ]
 
 [tool.setuptools.packages.find]
@@ -44,11 +66,27 @@ where = ["src"]
 [tool.uv]
 managed = true
 
+# ───────────────────────── Ruff (Canonical Discipline)
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-select = ["E", "F", "I", "UP", "N", "ASYNC", "S", "B", "Q", "RUF"]
-ignore = ["S311"]
+
+select = [
+  "E",   # errors
+  "F",   # fatal
+  "I",   # imports
+  "UP",  # modern python
+  "N",   # naming
+  "ASYNC",
+  "B",   # bugbear
+  "Q",   # quotes
+  "RUF", # ruff-native
+  "S",   # security (curated)
+]
+
+ignore = [
+  "S311", # random not cryptographic (intentional)
+]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["S101"]
@@ -57,23 +95,29 @@ ignore = ["S311"]
 quote-style = "double"
 indent-style = "space"
 
+# ───────────────────────── Mypy (Pragmatic Strictness)
 [tool.mypy]
 python_version = "3.11"
-plugins = []
-strict = true
 warn_unused_configs = true
 warn_redundant_casts = true
 warn_unused_ignores = true
 warn_return_any = true
 warn_unreachable = true
+
+# DO NOT enable full strict yet — platform code evolves fast
+disallow_untyped_defs = false
+check_untyped_defs = true
+
 exclude = ["alembic/.*"]
 
+# ───────────────────────── Pytest
 [tool.pytest.ini_options]
 minversion = "8.0"
 addopts = "-q"
 testpaths = ["tests"]
 asyncio_mode = "auto"
 
+# ───────────────────────── Build System
 [build-system]
 requires = ["setuptools>=69.0", "wheel"]
 build-backend = "setuptools.build_meta"
