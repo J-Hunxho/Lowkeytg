@@ -16,36 +16,73 @@ from ...utils.markdown import escape_markdown_v2
 router = Router(name="admin")
 
 
-def _ensure_admin(user: User) -> bool:
-    return bool(user.is_admin)
+# -------------------------
+# Helpers
+# -------------------------
 
+def _ensure_admin(user: User) -> None:
+    if not user.is_admin:
+        raise PermissionError
+
+
+async def _not_authorized(message: Message) -> None:
+    await message.answer("🚫 Not authorized.")
+
+
+# -------------------------
+# Commands
+# -------------------------
 
 @router.message(Command("admin"))
 async def cmd_admin(message: Message, user: User) -> None:
-    if not _ensure_admin(user):
-        await message.answer("Not authorized.")
+    try:
+        _ensure_admin(user)
+    except PermissionError:
+        await _not_authorized(message)
         return
-    await message.answer("Admin commands: /stats, /broadcast, /ban, /unban")
+
+    await message.answer(
+        escape_markdown_v2(
+            "🛠 *Admin Commands*\n"
+            "/stats — system stats\n"
+            "/broadcast <msg> — send announcement\n"
+            "/ban <telegram_id>\n"
+            "/unban <telegram_id>"
+        )
+    )
 
 
 @router.message(Command("stats"))
 async def cmd_stats(message: Message, session: AsyncSession, user: User) -> None:
-    if not _ensure_admin(user):
-        await message.answer("Not authorized.")
+    try:
+        _ensure_admin(user)
+    except PermissionError:
+        await _not_authorized(message)
         return
-    total_users = await session.scalar(select(func.count()).select_from(User))
-    total_orders = await session.scalar(select(func.count()).select_from(Order))
-    total_referrals = await session.scalar(select(func.count()).select_from(Referral))
-    total_messages = await session.scalar(select(func.count()).select_from(MessageRecord))
-    text = (
-        f"Users: {total_users}
-"
-        f"Orders: {total_orders}
-"
-        f"Referrals: {total_referrals}
-"
-        f"Messages logged: {total_messages}"
+
+    counts = await session.execute(
+        select(
+            func.count(User.id),
+            func.count(Order.id),
+            func.count(Referral.id),
+            func.count(MessageRecord.id),
+        )
+        .select_from(User)
+        .outerjoin(Order)
+        .outerjoin(Referral)
+        .outerjoin(MessageRecord)
     )
+
+    users, orders, referrals, messages = counts.one()
+
+    text = (
+        "📊 *System Stats*\n"
+        f"Users: `{users}`\n"
+        f"Orders: `{orders}`\n"
+        f"Referrals: `{referrals}`\n"
+        f"Messages logged: `{messages}`"
+    )
+
     await message.answer(escape_markdown_v2(text))
 
 
@@ -57,60 +94,38 @@ async def cmd_broadcast(
     user: User,
     rate_limiter: RateLimiter,
 ) -> None:
-    if not _ensure_admin(user):
-        await message.answer("Not authorized.")
+    try:
+        _ensure_admin(user)
+    except PermissionError:
+        await _not_authorized(message)
         return
+
     if not command or not command.args:
         await message.answer("Usage: /broadcast <message>")
         return
+
+    text = command.args.strip()
+    if len(text) > 4000:
+        await message.answer("❌ Message too long (max 4000 chars).")
+        return
+
     repo = UserRepository(session)
-    service = BroadcastService(session=session, bot=message.bot, rate_limiter=rate_limiter, users=repo)
+    service = BroadcastService(
+        session=session,
+        bot=message.bot,
+        rate_limiter=rate_limiter,
+        users=repo,
+        concurrency=10,
+    )
+
     user_ids = await repo.list_user_ids()
-    summary = await service.send(user_ids, command.args)
-    await message.answer(f"Broadcast sent: {summary.sent}, failed: {summary.failed}")
 
+    await message.answer("📣 Broadcasting…")
 
-@router.message(Command("ban"))
-async def cmd_ban(message: Message, command: CommandObject | None, session: AsyncSession, user: User) -> None:
-    if not _ensure_admin(user):
-        await message.answer("Not authorized.")
-        return
-    if not command or not command.args:
-        await message.answer("Usage: /ban <telegram_id>")
-        return
-    try:
-        target_id = int(command.args.strip())
-    except ValueError:
-        await message.answer("Invalid telegram ID")
-        return
-    repo = UserRepository(session)
-    target = await repo.get_by_telegram_id(target_id)
-    if not target:
-        await message.answer("User not found")
-        return
-    bans = BanRepository(session)
-    await bans.create_or_update(target.id, reason="Admin ban")
-    await message.answer(f"User {target_id} banned.")
+    summary = await service.send(user_ids, text)
 
-
-@router.message(Command("unban"))
-async def cmd_unban(message: Message, command: CommandObject | None, session: AsyncSession, user: User) -> None:
-    if not _ensure_admin(user):
-        await message.answer("Not authorized.")
-        return
-    if not command or not command.args:
-        await message.answer("Usage: /unban <telegram_id>")
-        return
-    try:
-        target_id = int(command.args.strip())
-    except ValueError:
-        await message.answer("Invalid telegram ID")
-        return
-    repo = UserRepository(session)
-    target = await repo.get_by_telegram_id(target_id)
-    if not target:
-        await message.answer("User not found")
-        return
-    bans = BanRepository(session)
-    await bans.remove(target.id)
-    await message.answer(f"User {target_id} unbanned.")
+    await message.answer(
+        escape_markdown_v2(
+            "✅ *Broadcast Complete*\n"
+            f"Sent: `{summary.sent}`\n"
+            f"Failed: `{summary.failed}`\n"

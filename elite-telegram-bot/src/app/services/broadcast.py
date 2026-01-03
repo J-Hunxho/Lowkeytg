@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
-from typing import Iterable
+from typing import Iterable, Sequence
 
 from aiogram import Bot
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,10 +12,11 @@ from ..repos.users import UserRepository
 from ..services.rate_limit import RateLimiter
 
 
-@dataclass
+@dataclass(slots=True)
 class BroadcastSummary:
     sent: int
     failed: int
+    skipped: int
 
 
 class BroadcastService:
@@ -24,40 +26,78 @@ class BroadcastService:
         bot: Bot,
         rate_limiter: RateLimiter,
         users: UserRepository,
+        *,
+        concurrency: int = 10,
     ) -> None:
         self.session = session
         self.bot = bot
         self.rate_limiter = rate_limiter
         self.users = users
+        self._semaphore = asyncio.Semaphore(concurrency)
 
-    async def send(self, user_ids: Iterable[int], text: str) -> BroadcastSummary:
+    async def send(
+        self,
+        user_ids: Iterable[int],
+        text: str,
+    ) -> BroadcastSummary:
         sent = 0
         failed = 0
-        for telegram_id in user_ids:
-            allowed = await self.rate_limiter.allow_user(
-                telegram_id, "broadcast", limit=20, window_seconds=60
-            )
-            if not allowed:
-                failed += 1
-                continue
-            user = await self.users.get_by_telegram_id(telegram_id)
-            if user is None:
-                failed += 1
-                continue
-            try:
-                await self.bot.send_message(chat_id=telegram_id, text=text)
-                self.session.add(
-                    MessageRecord(user_id=user.id, command="broadcast", status="sent", detail=text[:250])
+        skipped = 0
+        records: list[MessageRecord] = []
+
+        async def _send_one(telegram_id: int) -> None:
+            nonlocal sent, failed, skipped
+
+            async with self._semaphore:
+                allowed = await self.rate_limiter.allow_user(
+                    telegram_id,
+                    "broadcast",
+                    limit=20,
+                    window_seconds=60,
                 )
-                sent += 1
-            except Exception:
-                failed += 1
-                self.session.add(
-                    MessageRecord(
-                        user_id=user.id,
-                        command="broadcast",
-                        status="failed",
-                        detail=text[:250],
+                if not allowed:
+                    skipped += 1
+                    return
+
+                user = await self.users.get_by_telegram_id(telegram_id)
+                if user is None:
+                    skipped += 1
+                    return
+
+                try:
+                    await self.bot.send_message(
+                        chat_id=telegram_id,
+                        text=text,
+                        disable_web_page_preview=True,
                     )
-                )
-        return BroadcastSummary(sent=sent, failed=failed)
+                    records.append(
+                        MessageRecord(
+                            user_id=user.id,
+                            command="broadcast",
+                            status="sent",
+                            detail=text[:250],
+                        )
+                    )
+                    sent += 1
+                except Exception as exc:
+                    records.append(
+                        MessageRecord(
+                            user_id=user.id,
+                            command="broadcast",
+                            status="failed",
+                            detail=str(exc)[:250],
+                        )
+                    )
+                    failed += 1
+
+        tasks = [asyncio.create_task(_send_one(uid)) for uid in user_ids]
+        await asyncio.gather(*tasks, return_exceptions=True)
+
+        if records:
+            self.session.add_all(records)
+
+        return BroadcastSummary(
+            sent=sent,
+            failed=failed,
+            skipped=skipped,
+        )

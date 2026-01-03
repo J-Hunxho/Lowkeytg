@@ -22,7 +22,7 @@ test:
 pytest -q
 
 run:
-UVICORN_PORT=$${PORT:-8000} uvicorn src.app.web.api:app --reload --host 0.0.0.0 --port $${PORT:-8000}
+UVICORN_PORT=$${PORT:-8080} uvicorn src.app.web.api:app --reload --host 0.0.0.0 --port $${PORT:-8080}
 
 migrate:
 alembic upgrade head

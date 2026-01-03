@@ -14,70 +14,129 @@ from ..keyboards import referral_keyboard, shop_keyboard
 router = Router(name="base")
 
 
+# -------------------------
+# /start
+# -------------------------
+
 @router.message(CommandStart())
-async def cmd_start(message: Message, command: CommandObject | None, session: AsyncSession, user: User) -> None:
-    referral_code = command.args if command else None
-    service = ReferralService(session)
-    await service.process_referral(user, referral_code)
+async def cmd_start(
+    message: Message,
+    command: CommandObject | None,
+    session: AsyncSession,
+    user: User,
+) -> None:
+    referral_code = command.args.strip() if command and command.args else None
 
-    welcome = (
-        f"Welcome, {escape_markdown_v2(user.first_name or user.username or 'friend')}!
-"
-        "Use /help to explore commands."
+    if referral_code:
+        service = ReferralService(session)
+        await service.process_referral(user, referral_code)
+
+    name = escape_markdown_v2(user.first_name or user.username or "friend")
+
+    text = (
+        f"👋 Welcome, {name}!\n\n"
+        "Use /help to explore available commands."
     )
-    await message.answer(welcome)
 
+    await message.answer(text, parse_mode="MarkdownV2")
+
+
+# -------------------------
+# /help
+# -------------------------
 
 @router.message(Command("help"))
 async def cmd_help(message: Message, user: User) -> None:
     commands = [
-        "/start",
-        "/help",
-        "/profile",
-        "/ping",
-        "/about",
-        "/shop",
-        "/buy <sku>",
-        "/orders",
+        "/start — restart bot",
+        "/help — command list",
+        "/profile — your account",
+        "/ping — health check",
+        "/about — bot info",
+        "/shop — browse products",
+        "/buy <sku> — purchase",
+        "/orders — order history",
     ]
-    if user.is_admin:
-        commands.extend(["/admin", "/stats", "/broadcast <message>", "/ban <user_id>", "/unban <user_id>"])
-    text = "Available commands:
-" + "
-".join(commands)
-    await message.answer(escape_markdown_v2(text))
 
+    if user.is_admin:
+        commands.extend(
+            [
+                "",
+                "🔐 *Admin*",
+                "/admin",
+                "/stats",
+                "/broadcast <message>",
+                "/ban <telegram_id>",
+                "/unban <telegram_id>",
+            ]
+        )
+
+    text = "📖 *Available Commands*\n\n" + "\n".join(commands)
+
+    await message.answer(escape_markdown_v2(text), parse_mode="MarkdownV2")
+
+
+# -------------------------
+# /ping
+# -------------------------
 
 @router.message(Command("ping"))
 async def cmd_ping(message: Message) -> None:
-    await message.answer("PONG")
+    await message.answer("🏓 PONG")
 
+
+# -------------------------
+# /about
+# -------------------------
 
 @router.message(Command("about"))
 async def cmd_about(message: Message) -> None:
     about = (
-        "Elite Telegram bot crafted by Hunxho Codex Engineering.
-"
-        "Powered by aiogram, FastAPI, and Stripe Checkout."
+        "🤖 *LowkeyTG*\n\n"
+        "Elite Telegram bot engineered by *Hunxho Codex*.\n"
+        "Built with aiogram, FastAPI, and Stripe Checkout."
     )
-    await message.answer(escape_markdown_v2(about))
+    await message.answer(escape_markdown_v2(about), parse_mode="MarkdownV2")
 
+
+# -------------------------
+# /profile
+# -------------------------
 
 @router.message(Command("profile"))
 async def cmd_profile(message: Message, user: User) -> None:
-    link = f"https://t.me/{settings.telegram_bot_username}?start={user.referral_code}"
+    username = escape_markdown_v2(
+        user.first_name or user.username or str(user.telegram_id)
+    )
+
+    referral_link = (
+        f"https://t.me/{settings.telegram_bot_username}"
+        f"?start={user.referral_code}"
+    )
+
     text = (
-        f"👤 Profile for {escape_markdown_v2(user.first_name or user.username or str(user.telegram_id))}
-"
-        f"Referral code: `{user.referral_code}`
-"
-        f"Referral link: {escape_markdown_v2(link)}
-"
+        f"👤 *Profile*\n\n"
+        f"Name: {username}\n"
+        f"Referral code: `{user.referral_code}`\n"
+        f"Referral link: {escape_markdown_v2(referral_link)}\n"
         f"Referrals: *{user.referral_count}*"
     )
-    await message.answer(text, parse_mode="MarkdownV2", reply_markup=referral_keyboard(user.referral_code))
 
+    await message.answer(
+        text,
+        parse_mode="MarkdownV2",
+        reply_markup=referral_keyboard(user.referral_code),
+    )
+
+
+# -------------------------
+# /shop
+# -------------------------
 
 @router.message(Command("shop"))
 async def cmd_shop(message: Message) -> None:
-    await message.answer("Select a product:", reply_markup=shop_keyboard())
+    await message.answer(
+        "🛒 *Select a product:*",
+        parse_mode="MarkdownV2",
+        reply_markup=shop_keyboard(),
+    )

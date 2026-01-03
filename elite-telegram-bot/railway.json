@@ -1,9 +1,0 @@
-{
-  "build": {
-    "builder": "NIXPACKS"
-  },
-  "deploy": {
-    "healthcheckPath": "/healthz",
-    "restartPolicyType": "ON_FAILURE"
-  }
-}

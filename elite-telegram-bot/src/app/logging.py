@@ -1,32 +1,53 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict
+import sys
+from typing import Optional
 
-import structlog
-
-from .config import settings
+from .config import get_settings
 
 
-def configure_logging() -> None:
-    logging.basicConfig(level=settings.log_level)
-    structlog.configure(
-        processors=[
-            structlog.contextvars.merge_contextvars,
-            structlog.processors.add_log_level,
-            structlog.processors.TimeStamper(fmt="iso"),
-            _rename_event_key,
-            structlog.processors.JSONRenderer(),
-        ],
-        logger_factory=structlog.stdlib.LoggerFactory(),
-        wrapper_class=structlog.stdlib.BoundLogger,
+_LOGGER_NAME = "elite-bot"
+
+
+def configure_logging(force: bool = False) -> None:
+    """
+    Idempotent logging configuration.
+    Safe to call multiple times.
+    """
+    settings = get_settings()
+    level_name = (settings.log_level or "INFO").upper()
+
+    root = logging.getLogger()
+
+    # Prevent duplicate handlers unless forced
+    if root.handlers and not force:
+        return
+
+    root.setLevel(level_name)
+
+    # Clear existing handlers if forcing reconfig
+    if force:
+        root.handlers.clear()
+
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setLevel(level_name)
+
+    formatter = logging.Formatter(
+        fmt="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
     )
 
-
-def _rename_event_key(logger: logging.Logger, method_name: str, event_dict: Dict[str, Any]) -> Dict[str, Any]:
-    if "event" in event_dict and "message" not in event_dict:
-        event_dict["message"] = event_dict.pop("event")
-    return event_dict
+    handler.setFormatter(formatter)
+    root.addHandler(handler)
 
 
-logger = structlog.get_logger()
+def get_logger(name: Optional[str] = None) -> logging.Logger:
+    """
+    Get a namespaced logger.
+    """
+    return logging.getLogger(name or _LOGGER_NAME)
+
+
+# Default app logger
+logger = get_logger()
