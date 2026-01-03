@@ -60,7 +60,7 @@ class Order(Base):
     status: Mapped[str] = mapped_column(String(32), default="pending")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     paid_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
-    metadata: Mapped[Optional[dict]] = mapped_column(JSON)
+    extra-data: Mapped[Optional[dict]] = mapped_column(JSON)
 
     user: Mapped[User] = relationship("User", back_populates="orders")
 
