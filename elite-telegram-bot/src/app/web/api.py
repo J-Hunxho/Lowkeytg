@@ -19,38 +19,52 @@ from ..schemas import (
 )
 from ..services.payments import PaymentsService
 from ..services.rate_limit import RateLimiter
-from .deps import get_bot, get_db_session, get_dispatcher, get_rate_limiter
-from ..bot.main import bot as bot_instance
+from .deps import (
+    get_bot,
+    get_db_session,
+    get_dispatcher,
+    get_rate_limiter,
+)
 
 configure_logging()
 
 app = FastAPI(title="Elite Telegram Bot", version="0.1.0")
 
-
-# ---------- STARTUP ----------
+# ─────────────────────────────────────────────────────────────
+# STARTUP
+# ─────────────────────────────────────────────────────────────
 @app.on_event("startup")
 async def on_startup() -> None:
     settings = get_settings()
 
+    if not settings.telegram_enabled:
+        logger.info("startup.telegram_disabled")
+        return
+
     if not settings.set_webhook_on_start:
+        logger.info("startup.webhook_autoset_disabled")
         return
 
     try:
-        settings.require_telegram()
+        settings.validate_telegram()
 
-        await bot_instance.set_webhook(
+        bot = get_bot()
+        await bot.set_webhook(
             url=settings.webhook_url,
             secret_token=settings.telegram_webhook_secret_token.get_secret_value(),
         )
+
         logger.info("startup.webhook_set", url=settings.webhook_url)
 
     except Exception as exc:
-        logger.warning("startup.webhook_skipped", error=str(exc))
+        logger.warning("startup.webhook_failed", error=str(exc))
 
 
-# ---------- HEALTH ----------
+# ─────────────────────────────────────────────────────────────
+# HEALTH
+# ─────────────────────────────────────────────────────────────
 @app.get("/", response_model=HealthResponse)
-async def health() -> HealthResponse:
+async def root() -> HealthResponse:
     return HealthResponse()
 
 
@@ -59,7 +73,9 @@ async def healthz() -> HealthResponse:
     return HealthResponse()
 
 
-# ---------- TELEGRAM WEBHOOK ----------
+# ─────────────────────────────────────────────────────────────
+# TELEGRAM WEBHOOK
+# ─────────────────────────────────────────────────────────────
 @app.post("/webhook/telegram")
 async def telegram_webhook(
     request: Request,
@@ -73,20 +89,21 @@ async def telegram_webhook(
     ),
 ) -> JSONResponse:
     settings = get_settings()
-    settings.require_telegram()
+
+    if not settings.telegram_enabled:
+        raise HTTPException(status_code=403, detail="Telegram disabled")
+
+    settings.validate_telegram()
 
     expected = settings.telegram_webhook_secret_token.get_secret_value()
     if secret_token != expected:
-        logger.warning("telegram_webhook.invalid_secret", provided=secret_token)
+        logger.warning("telegram_webhook.invalid_secret")
         raise HTTPException(status_code=401, detail="Invalid secret token")
 
     if not await rate_limiter.allow_global("telegram", limit=300, window_seconds=1):
         raise HTTPException(status_code=429, detail="Too many updates")
 
-    body = await request.body()
-    data = json.loads(body)
-
-    update = Update.model_validate(data)
+    update = Update.model_validate(await request.json())
 
     try:
         await dispatcher.feed_webhook_update(
@@ -99,15 +116,14 @@ async def telegram_webhook(
         )
     except Exception as exc:
         logger.exception("telegram_webhook.error", error=str(exc))
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to process update",
-        ) from exc
+        raise HTTPException(status_code=500, detail="Failed to process update") from exc
 
     return JSONResponse({"ok": True})
 
 
-# ---------- STRIPE WEBHOOK ----------
+# ─────────────────────────────────────────────────────────────
+# STRIPE WEBHOOK
+# ─────────────────────────────────────────────────────────────
 @app.post("/webhook/stripe")
 async def stripe_webhook(
     request: Request,
@@ -116,8 +132,10 @@ async def stripe_webhook(
 ) -> JSONResponse:
     settings = get_settings()
 
-    if not settings.stripe_webhook_secret:
-        raise HTTPException(status_code=400, detail="Stripe webhook secret missing")
+    if not settings.stripe_enabled:
+        raise HTTPException(status_code=403, detail="Stripe disabled")
+
+    settings.validate_stripe()
 
     payload = await request.body()
     signature = request.headers.get("Stripe-Signature")
@@ -138,7 +156,9 @@ async def stripe_webhook(
     return JSONResponse({"received": True})
 
 
-# ---------- CHECKOUT ----------
+# ─────────────────────────────────────────────────────────────
+# CHECKOUT
+# ─────────────────────────────────────────────────────────────
 @app.post("/payments/checkout", response_model=CheckoutSessionResponse)
 async def create_checkout_session(
     payload: CheckoutSessionRequest,
@@ -146,8 +166,10 @@ async def create_checkout_session(
 ) -> CheckoutSessionResponse:
     settings = get_settings()
 
-    if not settings.stripe_secret_key:
-        raise HTTPException(status_code=400, detail="Stripe not configured")
+    if not settings.stripe_enabled:
+        raise HTTPException(status_code=403, detail="Stripe disabled")
+
+    settings.validate_stripe()
 
     from ..repos.users import UserRepository
 
