@@ -1,4 +1,3 @@
-from src.app.web.api import app
 
 import os
 from fastapi import FastAPI
@@ -11,4 +10,4 @@ def root():
 
 @app.get("/health")
 def health():
-    return {"health": "ok"}
+    return {"/healthz": "ok"}
