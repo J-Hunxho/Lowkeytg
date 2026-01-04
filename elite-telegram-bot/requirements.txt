@@ -6,6 +6,7 @@ uvicorn[standard]>=0.29.0
 # ───────────────────────── Database / ORM
 sqlalchemy[asyncio]>=2.0.29
 alembic>=1.13.1
+aiosqlite
 
 # ───────────────────────── Configuration / Validation
 pydantic>=2.7.0
