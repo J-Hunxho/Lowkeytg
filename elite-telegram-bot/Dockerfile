@@ -10,13 +10,13 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends build-essential curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY elite-telegram-bot/requirements.txt ./requirements.txt 
+COPY /elite-telegram-bot/requirements.txt ./requirements.txt 
 
 # ---- Workdir ----
 WORKDIR /app
 
 # ---- Python deps (COPY FIRST) ----
-COPY requirements.txt  .
+COPY /requirements.txt  .
 
 RUN pip install --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
