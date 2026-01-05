@@ -29,4 +29,4 @@ RUN chmod +x entrypoint.sh
 
 EXPOSE 8080
 
-ENTRYPOINT ["/bin/sh", "/app/entrypoint.sh"]
+CMD ["bash", "entrypoint.sh"]
