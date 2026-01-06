@@ -11,7 +11,7 @@ aiosqlite
 # ───────────────────────── Configuration / Validation
 pydantic>=2.7.0
 pydantic-settings>=2.2.1
-
+ruff
 # ───────────────────────── Payments / Infra
 stripe>=11.0.0
 redis>=5.0.3
