@@ -20,8 +20,7 @@ dependencies = [
   "alembic>=1.13.1",
   "pydantic>=2.7.0",
   "pydantic-settings>=2.2.1",
-[project.optional-dependencies]
-dev = ["ruff"],
+
   # ─── Payments / Infra
   "stripe>=11.0.0",
   "redis>=5.0.3",
@@ -39,6 +38,8 @@ dev = ["ruff"],
 
 [project.optional-dependencies]
 
+[project.optional-dependencies]
+dev = ["ruff"]
 # ─── Developer Experience
 dev = [
   "pytest>=8.2.0",
