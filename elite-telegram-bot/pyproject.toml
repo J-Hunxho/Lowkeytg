@@ -37,9 +37,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-
-[project.optional-dependencies]
 dev = ["ruff"]
+
 # ─── Developer Experience
 dev = [
   "pytest>=8.2.0",
