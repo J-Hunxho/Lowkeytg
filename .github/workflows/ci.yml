@@ -27,7 +27,7 @@ jobs:
         working-directory: elite-telegram-bot
 
       - name: Lint
-        run: uv run ruff check src tests
+        run: uvx ruff check src tests
         working-directory: elite-telegram-bot
 
       - name: Type check
