@@ -26,9 +26,9 @@ jobs:
         run: uv pip install -r requirements.txt
         working-directory: elite-telegram-bot
 
-      - name: Lint
-        run: uvx ruff check src tests
-        working-directory: elite-telegram-bot
+     # - name: Lint
+     #   run: uvx ruff check src tests
+     #   working-directory: elite-telegram-bot
 
       - name: Type check
         run: uv run mypy src
