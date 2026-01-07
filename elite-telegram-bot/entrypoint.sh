@@ -1,11 +1,11 @@
 #!/bin/sh
 set -e
 
-echo "Starting FastAPI on port 8080"
+PORT="${PORT:-8080}"
 
-exec uvicorn src.app.bot.main:app \
---host 0.0.0.0 \
---port ${PORT}
+echo "Starting FastAPI on port ${PORT}"
 
-#!/bin/bash
-python main.py
+exec uvicorn app.web.api:app \
+  --app-dir /app/src \
+  --host 0.0.0.0 \
+  --port "${PORT}"
