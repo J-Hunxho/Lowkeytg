@@ -14,7 +14,7 @@ COPY /requirements.txt ./requirements.txt
 
 # ---- Workdir ----
 WORKDIR /app/src
-ENV PYTHONPATH=/app/src
+ENV PYTHONPATH=/app/src/src
 
 # ---- Python deps (COPY FIRST) ----
 COPY /requirements.txt  .
