@@ -13,7 +13,8 @@ RUN apt-get update \
 COPY /requirements.txt ./requirements.txt 
 
 # ---- Workdir ----
-WORKDIR /app
+WORKDIR /app/src
+ENV PYTHONPATH=/app/src
 
 # ---- Python deps (COPY FIRST) ----
 COPY /requirements.txt  .
