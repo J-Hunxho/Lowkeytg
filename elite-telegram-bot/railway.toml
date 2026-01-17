@@ -7,4 +7,3 @@ healthcheckPath = "/healthz"
 healthcheckPort = 8080
 restartPolicyType = "ON_FAILURE"
 
-start_bot()
