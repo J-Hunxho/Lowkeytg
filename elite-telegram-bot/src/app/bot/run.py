@@ -1,11 +1,19 @@
-import os
-import uvicorn
+import asyncio
+from aiogram import Bot, Dispatcher
 
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8000))
-    uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=port,
-        log_level="info"
-    )
+from app.config import settings
+from app.bot.handlers import router  # wherever your handlers live
+
+async def start_bot():
+    token = settings.BOT_TOKEN  # your property alias we added
+    bot = Bot(token=token)
+    dp = Dispatcher()
+    dp.include_router(router)
+
+    # optional: register commands
+    await bot.set_my_commands([
+        # BotCommand(command="start", description="Start"),
+        # BotCommand(command="help", description="Help"),
+    ])
+
+    await dp.start_polling(bot)
