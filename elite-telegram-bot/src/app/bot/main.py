@@ -14,7 +14,6 @@ from fastapi import FastAPI
 
 app = FastAPI()
 
-start_bot()
 
 @app.get("/")
 def root():
@@ -23,3 +22,6 @@ def root():
 @app.get("/healthz")
 def health():
     return {"/healthz": "ok"}
+
+
+start_bot()
