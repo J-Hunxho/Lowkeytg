@@ -20,7 +20,7 @@ dependencies = [
   "alembic>=1.13.1",
   "pydantic>=2.7.0",
   "pydantic-settings>=2.2.1",
-  "mypy"
+  "mypy",
 
   # ─── Payments / Infra
   "stripe>=11.0.0",
