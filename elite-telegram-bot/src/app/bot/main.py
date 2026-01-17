@@ -14,6 +14,8 @@ from fastapi import FastAPI
 
 app = FastAPI()
 
+start_bot()
+
 @app.get("/")
 def root():
     return {"status": "ok"}
