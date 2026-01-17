@@ -12,8 +12,8 @@ async def start_bot():
 
     # optional: register commands
     await bot.set_my_commands([
-        # BotCommand(command="start", description="Start"),
-        # BotCommand(command="help", description="Help"),
+        BotCommand(command="start", description="Start"),
+        BotCommand(command="help", description="Help"),
     ])
 
     await dp.start_polling(bot)
