@@ -2,7 +2,10 @@ from aiogram import Bot, Dispatcher
 from app.config import settings
 from app.services.rate_limit import RateLimiter
 
-bot = Bot(token=settings.BOT_TOKEN)
+token = settings.telegram_bot_token.get_secret_value() if settings.telegram_bot_token else None
+if not token:
+    raise RuntimeError("Missing TELEGRAM_BOT_TOKEN")
+bot = Bot(token=token)
 dispatcher = Dispatcher()
 rate_limiter = RateLimiter()
 
