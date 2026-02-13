@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 
 from ..config import settings
 
@@ -13,9 +13,16 @@ def shop_keyboard() -> InlineKeyboardMarkup:
         ("VIP Annual", "vip_year"),
     ]
     for title, sku in products:
-        buttons.append([
-            InlineKeyboardButton(text=title, callback_data=f"buy:{sku}")
-        ])
+        buttons.append([InlineKeyboardButton(text=title, callback_data=f"buy:{sku}")])
+    if settings.public_base_url:
+        buttons.append(
+            [
+                InlineKeyboardButton(
+                    text="Open Mini App",
+                    web_app=WebAppInfo(url=f"{settings.public_base_url}/mini-app"),
+                )
+            ]
+        )
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 

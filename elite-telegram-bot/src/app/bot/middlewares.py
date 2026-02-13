@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import Any, Awaitable, Callable, Dict
 
 from aiogram import BaseMiddleware
-from aiogram.exceptions import CancelHandler
 from aiogram.types import Message, TelegramObject
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -46,7 +45,7 @@ class BanMiddleware(BaseMiddleware):
         if ban:
             if bot and isinstance(event, Message):
                 await bot.send_message(chat_id=user.telegram_id, text="You are banned from using this bot.")
-            raise CancelHandler()
+            return None
         return await handler(event, data)
 
 
@@ -64,5 +63,5 @@ class RateLimitMiddleware(BaseMiddleware):
         if not allowed:
             if bot and isinstance(event, Message):
                 await bot.send_message(chat_id=user.telegram_id, text="Slow down — you are sending messages too quickly.")
-            raise CancelHandler()
+            return None
         return await handler(event, data)

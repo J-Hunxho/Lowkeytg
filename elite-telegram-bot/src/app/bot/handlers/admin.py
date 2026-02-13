@@ -16,10 +16,6 @@ from ...utils.markdown import escape_markdown_v2
 router = Router(name="admin")
 
 
-# -------------------------
-# Helpers
-# -------------------------
-
 def _ensure_admin(user: User) -> None:
     if not user.is_admin:
         raise PermissionError
@@ -28,10 +24,6 @@ def _ensure_admin(user: User) -> None:
 async def _not_authorized(message: Message) -> None:
     await message.answer("🚫 Not authorized.")
 
-
-# -------------------------
-# Commands
-# -------------------------
 
 @router.message(Command("admin"))
 async def cmd_admin(message: Message, user: User) -> None:
@@ -46,9 +38,10 @@ async def cmd_admin(message: Message, user: User) -> None:
             "🛠 *Admin Commands*\n"
             "/stats — system stats\n"
             "/broadcast <msg> — send announcement\n"
-            "/ban <telegram_id>\n"
+            "/ban <telegram_id> [reason]\n"
             "/unban <telegram_id>"
-        )
+        ),
+        parse_mode="MarkdownV2",
     )
 
 
@@ -74,7 +67,6 @@ async def cmd_stats(message: Message, session: AsyncSession, user: User) -> None
     )
 
     users, orders, referrals, messages = counts.one()
-
     text = (
         "📊 *System Stats*\n"
         f"Users: `{users}`\n"
@@ -82,8 +74,7 @@ async def cmd_stats(message: Message, session: AsyncSession, user: User) -> None
         f"Referrals: `{referrals}`\n"
         f"Messages logged: `{messages}`"
     )
-
-    await message.answer(escape_markdown_v2(text))
+    await message.answer(escape_markdown_v2(text), parse_mode="MarkdownV2")
 
 
 @router.message(Command("broadcast"))
@@ -118,14 +109,74 @@ async def cmd_broadcast(
         concurrency=10,
     )
 
-    user_ids = await repo.list_user_ids()
-
     await message.answer("📣 Broadcasting…")
-
-    summary = await service.send(user_ids, text)
-
+    summary = await service.send(await repo.list_user_ids(), text)
     await message.answer(
         escape_markdown_v2(
-            "✅ *Broadcast Complete*\n"
-            f"Sent: `{summary.sent}`\n"
-            f"Failed: `{summary.failed}`\n"
+            f"✅ *Broadcast Complete*\nSent: `{summary.sent}`\nFailed: `{summary.failed}`"
+        ),
+        parse_mode="MarkdownV2",
+    )
+
+
+@router.message(Command("ban"))
+async def cmd_ban(
+    message: Message,
+    command: CommandObject | None,
+    session: AsyncSession,
+    user: User,
+) -> None:
+    try:
+        _ensure_admin(user)
+    except PermissionError:
+        await _not_authorized(message)
+        return
+
+    if not command or not command.args:
+        await message.answer("Usage: /ban <telegram_id> [reason]")
+        return
+
+    target, *reason_parts = command.args.split()
+    if not target.isdigit():
+        await message.answer("telegram_id must be numeric")
+        return
+
+    users = UserRepository(session)
+    target_user = await users.get_by_telegram_id(int(target))
+    if target_user is None:
+        await message.answer("User not found")
+        return
+
+    bans = BanRepository(session)
+    await bans.create_or_update(target_user.id, reason=" ".join(reason_parts) or None)
+    await session.commit()
+    await message.answer(f"✅ Banned {target_user.telegram_id}")
+
+
+@router.message(Command("unban"))
+async def cmd_unban(
+    message: Message,
+    command: CommandObject | None,
+    session: AsyncSession,
+    user: User,
+) -> None:
+    try:
+        _ensure_admin(user)
+    except PermissionError:
+        await _not_authorized(message)
+        return
+
+    if not command or not command.args or not command.args.strip().isdigit():
+        await message.answer("Usage: /unban <telegram_id>")
+        return
+
+    users = UserRepository(session)
+    target_user = await users.get_by_telegram_id(int(command.args.strip()))
+    if target_user is None:
+        await message.answer("User not found")
+        return
+
+    bans = BanRepository(session)
+    await bans.remove(target_user.id)
+    await session.commit()
+    await message.answer(f"✅ Unbanned {target_user.telegram_id}")
