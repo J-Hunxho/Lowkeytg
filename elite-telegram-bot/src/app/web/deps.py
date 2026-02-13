@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import AsyncGenerator
 
+from aiogram import Bot, Dispatcher
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..bot.main import bot, dispatcher, rate_limiter
@@ -14,11 +15,11 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
         yield session
 
 
-def get_bot():
+def get_bot() -> Bot | None:
     return bot
 
 
-def get_dispatcher():
+def get_dispatcher() -> Dispatcher:
     return dispatcher
 
 

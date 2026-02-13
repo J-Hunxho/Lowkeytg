@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from collections.abc import AsyncGenerator
+
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
@@ -20,6 +24,15 @@ AsyncSessionLocal = sessionmaker(
 )
 
 
-async def get_db() -> AsyncSession:
+async def get_session() -> AsyncGenerator[AsyncSession, None]:
     async with AsyncSessionLocal() as session:
         yield session
+
+
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    async for session in get_session():
+        yield session
+
+
+async def close_engine() -> None:
+    await engine.dispose()

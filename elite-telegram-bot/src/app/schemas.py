@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field, ConfigDict
 # Health
 # -------------------------
 
+
 class HealthResponse(BaseModel):
     status: str = Field(default="ok", description="Service health status")
 
@@ -17,6 +18,7 @@ class HealthResponse(BaseModel):
 # -------------------------
 # Checkout
 # -------------------------
+
 
 class CheckoutSessionRequest(BaseModel):
     sku: str = Field(..., min_length=1, description="Product SKU")
@@ -34,6 +36,7 @@ class CheckoutSessionResponse(BaseModel):
 # Stripe Webhooks
 # -------------------------
 
+
 class StripeWebhookEvent(BaseModel):
     id: str = Field(..., description="Stripe event ID")
     type: str = Field(..., description="Stripe event type")
@@ -44,6 +47,7 @@ class StripeWebhookEvent(BaseModel):
 # -------------------------
 # Orders
 # -------------------------
+
 
 class OrderRead(BaseModel):
     id: int
