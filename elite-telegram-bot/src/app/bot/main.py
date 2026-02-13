@@ -4,7 +4,6 @@ from aiogram import Bot, Dispatcher
 from aiogram.types import BotCommand
 
 from ..config import settings
-from ..logging import logger
 from ..services.rate_limit import RateLimiter
 from .handlers.admin import router as admin_router
 from .handlers.base import router as base_router
@@ -13,18 +12,9 @@ from .middlewares import BanMiddleware, RateLimitMiddleware, UserContextMiddlewa
 
 
 def _build_bot() -> Bot | None:
-    if not settings.telegram_enabled:
-        return None
-
     if not settings.telegram_bot_token:
-        logger.warning("bot.init.missing_token")
         return None
-
-    try:
-        return Bot(token=settings.telegram_bot_token.get_secret_value())
-    except Exception as exc:  # pragma: no cover - invalid env token format
-        logger.error("bot.init.invalid_token", error=str(exc))
-        return None
+    return Bot(token=settings.telegram_bot_token.get_secret_value())
 
 
 bot = _build_bot()
