@@ -20,7 +20,9 @@ class User(Base):
     language_code: Mapped[Optional[str]] = mapped_column(String(10))
     is_admin: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
     referral_code: Mapped[str] = mapped_column(String(64), unique=True)
     referred_by_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
     referral_count: Mapped[int] = mapped_column(Integer, default=0)
@@ -44,8 +46,12 @@ class Referral(Base):
     referred_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    referrer: Mapped[User] = relationship("User", foreign_keys=[referrer_id], back_populates="referrals")
-    referred: Mapped[User] = relationship("User", foreign_keys=[referred_id], back_populates="referred_users")
+    referrer: Mapped[User] = relationship(
+        "User", foreign_keys=[referrer_id], back_populates="referrals"
+    )
+    referred: Mapped[User] = relationship(
+        "User", foreign_keys=[referred_id], back_populates="referred_users"
+    )
 
 
 class Order(Base):

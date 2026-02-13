@@ -6,7 +6,7 @@ import string
 
 def generate_referral_code(length: int = 8) -> str:
     alphabet = string.ascii_uppercase + string.digits
-    return ''.join(secrets.choice(alphabet) for _ in range(length))
+    return "".join(secrets.choice(alphabet) for _ in range(length))
 
 
 def generate_request_id() -> str:

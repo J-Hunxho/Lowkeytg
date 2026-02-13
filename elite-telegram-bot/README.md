@@ -4,7 +4,9 @@ Hunxho Codex engineered Telegram bot with FastAPI webhook surface, Stripe Checko
 
 ## Features
 
-- ✅ **Command-rich bot**: `/start`, `/help`, `/profile`, `/ping`, `/about`, `/shop`, `/buy`, `/orders`, plus admin-only `/admin`, `/stats`, `/broadcast`, `/ban`, `/unban`.
+- ✅ **Command-rich bot**: `/start`, `/help`, `/profile`, `/ping`, `/about`, `/shop`, `/buy`, `/orders`, `/app`, plus admin-only `/admin`, `/stats`, `/broadcast`, `/ban`, `/unban`.
+- ✅ **Command forwarding fallback** for unknown `/commands`, ensuring every command receives a bot response.
+- ✅ **Telegram Mini App** served from `/mini-app` with WebApp integration (`sendData`) and launch button in `/app` + `/shop`.
 - ✅ **Referral tracking** with automatic onboarding attribution and profile summaries.
 - ✅ **Stripe Checkout** digital storefront with webhook fulfillment and idempotent order processing.
 - ✅ **Rate limiting & anti-spam** with Redis-backed (or in-memory) throttling and abuse mitigation.
@@ -20,6 +22,7 @@ Hunxho Codex engineered Telegram bot with FastAPI webhook surface, Stripe Checko
 FastAPI (Uvicorn)
 │
 ├── /healthz → status probe
+├── /mini-app → Telegram Web App shell
 ├── /webhook/telegram → aiogram webhook dispatcher
 ├── /webhook/stripe → Stripe signature verification & fulfillment
 └── /payments/checkout → Checkout Session API

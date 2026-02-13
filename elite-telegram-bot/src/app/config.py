@@ -10,18 +10,18 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     # ─── Core Settings Behavior ──────────────────────────────────────────────
     model_config = SettingsConfigDict(
-        env_file=".env",                 # Local only
+        env_file=".env",  # Local only
         env_file_encoding="utf-8",
         case_sensitive=False,
-        extra="ignore",                  # Ignore unknown env vars (Railway-safe)
+        extra="ignore",  # Ignore unknown env vars (Railway-safe)
     )
 
     # ─── Runtime Environment ────────────────────────────────────────────────
-    env: str = "dev"                    # dev | prod | test
+    env: str = "dev"  # dev | prod | test
     log_level: str = "INFO"
 
     # ─── Telegram (OPTIONAL) ────────────────────────────────────────────────
-    telegram_enabled: bool = False      # 🔑 master kill-switch
+    telegram_enabled: bool = False  # 🔑 master kill-switch
 
     telegram_bot_token: Optional[SecretStr] = None
     telegram_bot_username: Optional[str] = None
@@ -50,18 +50,12 @@ class Settings(BaseSettings):
     # ─── Validators ─────────────────────────────────────────────────────────
     @field_validator("admin_user_ids", mode="before")
     @classmethod
-    def parse_admins(
-        cls, value: str | Tuple[int, ...] | None
-    ) -> Tuple[int, ...]:
+    def parse_admins(cls, value: str | Tuple[int, ...] | None) -> Tuple[int, ...]:
         if not value:
             return ()
         if isinstance(value, tuple):
             return value
-        return tuple(
-            int(part.strip())
-            for part in value.split(",")
-            if part.strip().isdigit()
-        )
+        return tuple(int(part.strip()) for part in value.split(",") if part.strip().isdigit())
 
     # ─── Derived / Guarded Properties ───────────────────────────────────────
     @property
@@ -88,9 +82,7 @@ class Settings(BaseSettings):
             missing.append("PUBLIC_BASE_URL")
 
         if missing:
-            raise RuntimeError(
-                f"Telegram enabled but missing: {', '.join(missing)}"
-            )
+            raise RuntimeError(f"Telegram enabled but missing: {', '.join(missing)}")
 
     def validate_stripe(self) -> None:
         """
@@ -106,5 +98,6 @@ class Settings(BaseSettings):
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     return Settings()
+
 
 settings: Settings = get_settings()
