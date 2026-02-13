@@ -4,7 +4,9 @@ Hunxho Codex engineered Telegram bot with FastAPI webhook surface, Stripe Checko
 
 ## Features
 
-- ✅ **Command-rich bot**: `/start`, `/help`, `/profile`, `/ping`, `/about`, `/shop`, `/buy`, `/orders`, plus admin-only `/admin`, `/stats`, `/broadcast`, `/ban`, `/unban`.
+- ✅ **Command-rich bot**: `/start`, `/help`, `/profile`, `/ping`, `/about`, `/shop`, `/buy`, `/orders`, `/app`, plus admin-only `/admin`, `/stats`, `/broadcast`, `/ban`, `/unban`.
+- ✅ **Command forwarding fallback** for unknown `/commands`, ensuring every command receives a bot response.
+- ✅ **Telegram Mini App** served from `/mini-app` with WebApp integration (`sendData`) and launch button in `/app` + `/shop`.
 - ✅ **Referral tracking** with automatic onboarding attribution and profile summaries.
 - ✅ **Stripe Checkout** digital storefront with webhook fulfillment and idempotent order processing.
 - ✅ **Rate limiting & anti-spam** with Redis-backed (or in-memory) throttling and abuse mitigation.
@@ -20,6 +22,7 @@ Hunxho Codex engineered Telegram bot with FastAPI webhook surface, Stripe Checko
 FastAPI (Uvicorn)
 │
 ├── /healthz → status probe
+├── /mini-app → Telegram Web App shell
 ├── /webhook/telegram → aiogram webhook dispatcher
 ├── /webhook/stripe → Stripe signature verification & fulfillment
 └── /payments/checkout → Checkout Session API
@@ -99,9 +102,15 @@ make webhook\:set
 1. Create a new Railway project and select “Deploy from GitHub”.
 2. Add all environment variables from `.env.example`.
 3. Railway auto-assigns a public domain; set `PUBLIC_BASE_URL` to `https://<project>.up.railway.app` (or custom domain).
-4. Deploy. On startup the app sets the Telegram webhook if `SET_WEBHOOK_ON_START=true`.
-5. Verify `/healthz`, then send a Telegram message to confirm the webhook handles updates.
-6. Process a test Stripe payment to ensure fulfillment.
+4. Deploy. Railway now runs `/app/scripts/railway-start.sh` from `railway.toml`.
+5. Startup script behavior:
+   - exports `PYTHONPATH=/app/src`
+   - runs `alembic upgrade head` by default (`RUN_MIGRATIONS_ON_START=true`)
+   - starts Uvicorn on `$PORT`.
+6. Optional: set `RUN_MIGRATIONS_ON_START=false` if migrations are handled in a separate release job.
+7. On startup the app sets the Telegram webhook if `SET_WEBHOOK_ON_START=true`.
+8. Verify `/healthz`, then send a Telegram message to confirm the webhook handles updates.
+9. Process a test Stripe payment to ensure fulfillment.
 
 ## Tooling
 

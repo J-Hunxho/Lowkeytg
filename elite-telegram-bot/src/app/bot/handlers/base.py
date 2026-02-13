@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from aiogram import Router
+from aiogram import F, Router
 from aiogram.filters import Command, CommandObject, CommandStart
-from aiogram.types import Message
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, WebAppInfo
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...config import settings
@@ -13,10 +13,6 @@ from ..keyboards import referral_keyboard, shop_keyboard
 
 router = Router(name="base")
 
-
-# -------------------------
-# /start
-# -------------------------
 
 @router.message(CommandStart())
 async def cmd_start(
@@ -32,18 +28,9 @@ async def cmd_start(
         await service.process_referral(user, referral_code)
 
     name = escape_markdown_v2(user.first_name or user.username or "friend")
-
-    text = (
-        f"👋 Welcome, {name}!\n\n"
-        "Use /help to explore available commands."
-    )
-
+    text = f"👋 Welcome, {name}!\n\nUse /help to explore available commands."
     await message.answer(text, parse_mode="MarkdownV2")
 
-
-# -------------------------
-# /help
-# -------------------------
 
 @router.message(Command("help"))
 async def cmd_help(message: Message, user: User) -> None:
@@ -56,6 +43,7 @@ async def cmd_help(message: Message, user: User) -> None:
         "/shop — browse products",
         "/buy <sku> — purchase",
         "/orders — order history",
+        "/app — open mini app",
     ]
 
     if user.is_admin:
@@ -72,22 +60,13 @@ async def cmd_help(message: Message, user: User) -> None:
         )
 
     text = "📖 *Available Commands*\n\n" + "\n".join(commands)
-
     await message.answer(escape_markdown_v2(text), parse_mode="MarkdownV2")
 
-
-# -------------------------
-# /ping
-# -------------------------
 
 @router.message(Command("ping"))
 async def cmd_ping(message: Message) -> None:
     await message.answer("🏓 PONG")
 
-
-# -------------------------
-# /about
-# -------------------------
 
 @router.message(Command("about"))
 async def cmd_about(message: Message) -> None:
@@ -99,23 +78,13 @@ async def cmd_about(message: Message) -> None:
     await message.answer(escape_markdown_v2(about), parse_mode="MarkdownV2")
 
 
-# -------------------------
-# /profile
-# -------------------------
-
 @router.message(Command("profile"))
 async def cmd_profile(message: Message, user: User) -> None:
-    username = escape_markdown_v2(
-        user.first_name or user.username or str(user.telegram_id)
-    )
-
-    referral_link = (
-        f"https://t.me/{settings.telegram_bot_username}"
-        f"?start={user.referral_code}"
-    )
+    username = escape_markdown_v2(user.first_name or user.username or str(user.telegram_id))
+    referral_link = f"https://t.me/{settings.telegram_bot_username}?start={user.referral_code}"
 
     text = (
-        f"👤 *Profile*\n\n"
+        "👤 *Profile*\n\n"
         f"Name: {username}\n"
         f"Referral code: `{user.referral_code}`\n"
         f"Referral link: {escape_markdown_v2(referral_link)}\n"
@@ -129,10 +98,6 @@ async def cmd_profile(message: Message, user: User) -> None:
     )
 
 
-# -------------------------
-# /shop
-# -------------------------
-
 @router.message(Command("shop"))
 async def cmd_shop(message: Message) -> None:
     await message.answer(
@@ -140,3 +105,34 @@ async def cmd_shop(message: Message) -> None:
         parse_mode="MarkdownV2",
         reply_markup=shop_keyboard(),
     )
+
+
+@router.message(Command("app"))
+async def cmd_app(message: Message) -> None:
+    if not settings.public_base_url:
+        await message.answer("Mini app unavailable: set PUBLIC_BASE_URL first.")
+        return
+
+    await message.answer(
+        "Open the Lowkey mini app:",
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="Launch Mini App",
+                        web_app=WebAppInfo(url=f"{settings.public_base_url}/mini-app"),
+                    )
+                ]
+            ]
+        ),
+    )
+
+
+@router.message(F.web_app_data)
+async def on_webapp_data(message: Message) -> None:
+    await message.answer(f"✅ Mini app payload received:\n{message.web_app_data.data}")
+
+
+@router.message(F.text.startswith("/"))
+async def cmd_fallback(message: Message) -> None:
+    await message.answer("Unknown command forwarded to bot router. Use /help.")

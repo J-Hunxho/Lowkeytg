@@ -68,9 +68,7 @@ class PaymentsService:
             "session_id": checkout_session["id"],
         }
 
-    async def handle_checkout_event(
-        self, payload: Dict[str, Any]
-    ) -> Optional[Order]:
+    async def handle_checkout_event(self, payload: Dict[str, Any]) -> Optional[Order]:
         event_type = payload.get("type")
         data_object = payload.get("data", {}).get("object", {})
         session_id = data_object.get("id")
@@ -92,9 +90,7 @@ class PaymentsService:
             "checkout.session.async_payment_failed",
         }:
             await self.orders.mark_failed(order)
-            await self._notify_user(
-                order, "Payment failed or expired. Please try again."
-            )
+            await self._notify_user(order, "Payment failed or expired. Please try again.")
 
         return order
 
@@ -102,9 +98,7 @@ class PaymentsService:
         if not self.bot:
             return
 
-        telegram_id = (
-            order.metadata.get("telegram_id") if order.metadata else None
-        )
+        telegram_id = order.metadata.get("telegram_id") if order.metadata else None
         if not telegram_id:
             return
 
@@ -120,4 +114,3 @@ class PaymentsService:
             "vip_year": self.settings.price_id_vip_year,
         }
         return mapping.get(sku)
-
