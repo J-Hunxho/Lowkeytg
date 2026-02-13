@@ -20,6 +20,7 @@ router = Router(name="payments")
 # Helpers
 # -------------------------
 
+
 async def _create_checkout(
     *,
     user: User,
@@ -46,6 +47,7 @@ async def _create_checkout(
 # -------------------------
 # /buy
 # -------------------------
+
 
 @router.message(Command("buy"))
 async def cmd_buy(
@@ -79,6 +81,7 @@ async def cmd_buy(
 # Inline buy (callback)
 # -------------------------
 
+
 @router.callback_query(lambda q: q.data and q.data.startswith("buy:"))
 async def cb_buy(
     callback: CallbackQuery,
@@ -104,6 +107,7 @@ async def cb_buy(
 # /orders
 # -------------------------
 
+
 @router.message(Command("orders"))
 async def cmd_orders(
     message: Message,
@@ -117,10 +121,7 @@ async def cmd_orders(
         await message.answer("📭 No orders yet.")
         return
 
-    lines = [
-        f"• `{order.sku}` — *{order.status}*"
-        for order in orders
-    ]
+    lines = [f"• `{order.sku}` — *{order.status}*" for order in orders]
 
     text = "📦 *Your Orders*\n\n" + "\n".join(lines)
 
