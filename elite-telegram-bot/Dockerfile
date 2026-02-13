@@ -12,12 +12,9 @@ WORKDIR /app
 COPY requirements.txt /app/requirements.txt
 RUN pip install --upgrade pip && pip install --no-cache-dir -r /app/requirements.txt
 
-# Copy everything (fine) but now we’re anchored at /app
 COPY . /app
 
-RUN chmod +x /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh /app/scripts/railway-start.sh
 
 EXPOSE 8080
 CMD ["/app/entrypoint.sh"]
-
-start_bot()
