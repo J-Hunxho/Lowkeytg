@@ -45,7 +45,7 @@ async def on_startup() -> None:
                 url=settings.webhook_url,
                 secret_token=settings.telegram_webhook_secret_token.get_secret_value(),
             )
-            logger.info("startup.webhook_set" url=%s", settings.webhook_url)
+            logger.info("startup.webhook_set url=%s", settings.webhook_url)
         except Exception as exc:  # pragma: no cover - network/API dependent
             logger.warning("startup.webhook_failed", error=str(exc))
 
