@@ -60,8 +60,9 @@ class Settings(BaseSettings):
     # ─── Derived / Guarded Properties ───────────────────────────────────────
     @property
 def webhook_url(self) -> str:
-    if not self.public_base_url:
+    if not self.public_base_url)
         raise RuntimeError("PUBLIC_BASE_URL is required for webhooks")
+        
     base = str(self.public_base_url).rstrip("/")
     return f"{base}/webhook/telegram"
 
