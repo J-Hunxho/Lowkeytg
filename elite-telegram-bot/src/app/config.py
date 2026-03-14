@@ -58,46 +58,48 @@ class Settings(BaseSettings):
         return tuple(int(part.strip()) for part in value.split(",") if part.strip().isdigit())
 
     # ─── Derived / Guarded Properties ───────────────────────────────────────
+    class Settings(BaseSettings):
+    # ─── Runtime Environment ─────────────────────────────
+    env: str = "dev"
+    log_level: str = "INFO"
+
+    # ─── Telegram ───────────────────────────────────────
+    telegram_enabled: bool = False
+    telegram_bot_token: Optional[SecretStr] = None
+    telegram_bot_username: Optional[str] = None
+    telegram_webhook_secret_token: Optional[SecretStr] = None
+    public_base_url: Optional[AnyUrl] = None
+    set_webhook_on_start: bool = False
+
+    # ─── Stripe ─────────────────────────────────────────
+    stripe_enabled: bool = False
+    stripe_secret_key: Optional[SecretStr] = None
+    stripe_webhook_secret: Optional[SecretStr] = None
+
+    price_id_founder_key: Optional[str] = None
+    price_id_vip_month: Optional[str] = None
+    price_id_vip_year: Optional[str] = None
+
+    # ─── Infrastructure ─────────────────────────────────
+    database_url: str = "sqlite+aiosqlite:///./data.db"
+    redis_url: Optional[str] = None
+
+    # ─── Admin ──────────────────────────────────────────
+    admin_user_ids: Tuple[int, ...] = ()
+
+    @field_validator("admin_user_ids", mode="before")
+    @classmethod
+    def parse_admins(cls, value):
+        if not value:
+            return ()
+        if isinstance(value, tuple):
+            return value
+        return tuple(int(x.strip()) for x in value.split(",") if x.strip().isdigit())
+
     @property
     def webhook_url(self) -> str:
         if not self.public_base_url:
             raise RuntimeError("PUBLIC_BASE_URL is required for webhooks")
-        return f"{self.public_base_url}/webhook/telegram"
 
-    def validate_telegram(self) -> None:
-        """
-        Call ONLY if telegram_enabled=True
-        """
-        if not self.telegram_enabled:
-            return
-
-        missing = []
-        if not self.telegram_bot_token:
-            missing.append("TELEGRAM_BOT_TOKEN")
-        if not self.telegram_bot_username:
-            missing.append("TELEGRAM_BOT_USERNAME")
-        if not self.telegram_webhook_secret_token:
-            missing.append("TELEGRAM_WEBHOOK_SECRET_TOKEN")
-        if not self.public_base_url:
-            missing.append("PUBLIC_BASE_URL")
-
-        if missing:
-            raise RuntimeError(f"Telegram enabled but missing: {', '.join(missing)}")
-
-    def validate_stripe(self) -> None:
-        """
-        Call ONLY if stripe_enabled=True
-        """
-        if not self.stripe_enabled:
-            return
-
-        if not self.stripe_secret_key:
-            raise RuntimeError("STRIPE_SECRET_KEY is required when stripe_enabled=True")
-
-
-@lru_cache(maxsize=1)
-def get_settings() -> Settings:
-    return Settings()
-
-
-settings: Settings = get_settings()
+        base = str(self.public_base_url).rstrip("/")
+        return f"{base}/webhook/telegram"

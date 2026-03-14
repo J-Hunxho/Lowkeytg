@@ -102,9 +102,41 @@ make webhook\:set
 1. Create a new Railway project and select “Deploy from GitHub”.
 2. Add all environment variables from `.env.example`.
 3. Railway auto-assigns a public domain; set `PUBLIC_BASE_URL` to `https://<project>.up.railway.app` (or custom domain).
-4. Deploy. On startup the app sets the Telegram webhook if `SET_WEBHOOK_ON_START=true`.
-5. Verify `/healthz`, then send a Telegram message to confirm the webhook handles updates.
-6. Process a test Stripe payment to ensure fulfillment.
+4. Deploy. Railway now runs `/app/scripts/railway-start.sh` from `railway.toml`.
+5. Startup script behavior:
+   - exports `PYTHONPATH=/app/src`
+   - runs `alembic upgrade head` by default (`RUN_MIGRATIONS_ON_START=true`)
+   - starts Uvicorn on `$PORT`.
+6. Optional: set `RUN_MIGRATIONS_ON_START=false` if migrations are handled in a separate release job.
+7. On startup the app sets the Telegram webhook if `SET_WEBHOOK_ON_START=true`.
+8. Verify `/healthz`, then send a Telegram message to confirm the webhook handles updates.
+9. Process a test Stripe payment to ensure fulfillment.
+
+
+### Railway Environment Settings
+
+Set these variables in Railway **before first deploy**:
+
+| Variable | Required | Example | Notes |
+|---|---|---|---|
+| `ENV` | ✅ | `prod` | Runtime mode. |
+| `LOG_LEVEL` | ✅ | `INFO` | Logging verbosity. |
+| `DATABASE_URL` | ✅ | `sqlite+aiosqlite:///./data.db` | Use Postgres in production SaaS scale. |
+| `RUN_MIGRATIONS_ON_START` | ✅ | `true` | Auto-runs `alembic upgrade head`. |
+| `TELEGRAM_ENABLED` | ✅ | `true` / `false` | Master switch for Telegram runtime. |
+| `TELEGRAM_BOT_TOKEN` | ✅ if Telegram enabled | `123456:ABC...` | Must be real BotFather token. |
+| `TELEGRAM_BOT_USERNAME` | ✅ if Telegram enabled | `lowkeytg_bot` | Bot username without `@`. |
+| `TELEGRAM_WEBHOOK_SECRET_TOKEN` | ✅ if Telegram enabled | `super-secret-value` | Header validation secret for Telegram webhook. |
+| `PUBLIC_BASE_URL` | ✅ if Telegram enabled | `https://<service>.up.railway.app` | Used for webhook + mini app links. |
+| `SET_WEBHOOK_ON_START` | ✅ | `true` | Auto-register webhook on startup. |
+| `STRIPE_ENABLED` | Optional | `true` / `false` | Enable Stripe checkout path. |
+| `STRIPE_SECRET_KEY` | ✅ if Stripe enabled | `sk_live_...` | Stripe API key. |
+| `STRIPE_WEBHOOK_SECRET` | ✅ if Stripe enabled | `whsec_...` | Stripe signature verification key. |
+| `PRICE_ID_FOUNDER_KEY` | Optional | `price_...` | SKU mapping. |
+| `PRICE_ID_VIP_MONTH` | Optional | `price_...` | SKU mapping. |
+| `PRICE_ID_VIP_YEAR` | Optional | `price_...` | SKU mapping. |
+| `ADMIN_USER_IDS` | Optional | `12345,67890` | Comma-separated Telegram IDs. |
+| `REDIS_URL` | Optional | `redis://...` | Improves distributed rate limits. |
 
 ## Tooling
 
