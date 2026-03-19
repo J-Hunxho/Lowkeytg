@@ -5,6 +5,7 @@ import json
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from app.bot.main import get_private_commands
 from app.config import Settings, settings
 from app.web.api import app
 
@@ -16,6 +17,16 @@ async def test_healthz() -> None:
         response = await client.get("/healthz")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
+
+
+@pytest.mark.asyncio()
+async def test_readyz() -> None:
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/readyz")
+    assert response.status_code == 200
+    assert response.json()["status"] == "ok"
+    assert response.json()["checks"]["database"] == "ok"
 
 
 @pytest.mark.asyncio()
@@ -58,8 +69,14 @@ def test_webhook_url_is_normalized_for_railway_domains() -> None:
         telegram_enabled=True,
         telegram_bot_token="123456:ABC",
         telegram_webhook_secret_token="secret",
+        public_base_url=None,
         railway_static_url="example.up.railway.app/",
         webhook_path="//telegram//",
     )
     assert cfg.effective_public_base_url == "https://example.up.railway.app"
     assert cfg.webhook_url == "https://example.up.railway.app/telegram"
+
+
+def test_private_commands_expose_aliases_and_ops_commands() -> None:
+    commands = {command.command for command in get_private_commands()}
+    assert {"profile", "app", "ban", "unban"}.issubset(commands)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncGenerator
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
@@ -36,3 +37,8 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 async def close_engine() -> None:
     await engine.dispose()
+
+
+async def check_database_health() -> None:
+    async with engine.connect() as connection:
+        await connection.execute(text("SELECT 1"))
