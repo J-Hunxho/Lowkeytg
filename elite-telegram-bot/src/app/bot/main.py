@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from aiogram import Bot, Dispatcher
-from aiogram.types import BotCommand
+from aiogram.types import BotCommand, BotCommandScopeAllPrivateChats
 
 from ..config import settings
 from ..services.rate_limit import RateLimiter
@@ -22,6 +22,26 @@ dispatcher = Dispatcher()
 rate_limiter = RateLimiter()
 
 
+def get_private_commands() -> list[BotCommand]:
+    return [
+        BotCommand(command="start", description="User · onboarding flow"),
+        BotCommand(command="help", description="User · command guide"),
+        BotCommand(command="account", description="User · account overview"),
+        BotCommand(command="orders", description="User · order history"),
+        BotCommand(command="support", description="User · support contact"),
+        BotCommand(command="shop", description="Products · browse catalog"),
+        BotCommand(command="products", description="Products · list live SKUs"),
+        BotCommand(command="buy", description="Products · purchase by SKU"),
+        BotCommand(command="admin", description="Admin · control panel"),
+        BotCommand(command="addproduct", description="Admin · add product"),
+        BotCommand(command="removeproduct", description="Admin · remove product"),
+        BotCommand(command="broadcast", description="Admin · send broadcast"),
+        BotCommand(command="stats", description="Admin · performance metrics"),
+        BotCommand(command="users", description="Admin · user totals"),
+        BotCommand(command="webhookstatus", description="System · webhook status"),
+    ]
+
+
 def configure_dispatcher() -> None:
     dispatcher.update.middleware(UserContextMiddleware())
     dispatcher.update.middleware(BanMiddleware())
@@ -37,15 +57,8 @@ async def configure_bot_commands() -> None:
         return
 
     await bot.set_my_commands(
-        [
-            BotCommand(command="start", description="Launch bot"),
-            BotCommand(command="help", description="List all commands"),
-            BotCommand(command="profile", description="Your profile & referrals"),
-            BotCommand(command="shop", description="Browse products"),
-            BotCommand(command="app", description="Open Lowkey mini app"),
-            BotCommand(command="orders", description="Your order history"),
-            BotCommand(command="ping", description="Health check"),
-        ]
+        commands=get_private_commands(),
+        scope=BotCommandScopeAllPrivateChats(),
     )
 
 

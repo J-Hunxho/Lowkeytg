@@ -5,21 +5,19 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from ..config import settings
 
 
-def shop_keyboard() -> InlineKeyboardMarkup:
-    buttons = []
-    products = [
-        ("Founder Key", "founder_key"),
-        ("VIP Monthly", "vip_month"),
-        ("VIP Annual", "vip_year"),
-    ]
-    for title, sku in products:
-        buttons.append([InlineKeyboardButton(text=title, callback_data=f"buy:{sku}")])
-    if settings.public_base_url:
+def shop_keyboard(products: list[dict[str, str]] | None = None) -> InlineKeyboardMarkup:
+    buttons: list[list[InlineKeyboardButton]] = []
+    products = products or []
+    for product in products:
+        buttons.append(
+            [InlineKeyboardButton(text=product["title"], callback_data=f"buy:{product['sku']}")]
+        )
+    if settings.public_base_url or settings.railway_static_url or settings.railway_public_domain:
         buttons.append(
             [
                 InlineKeyboardButton(
                     text="Open Mini App",
-                    web_app=WebAppInfo(url=f"{settings.public_base_url}/mini-app"),
+                    web_app=WebAppInfo(url=settings.mini_app_url),
                 )
             ]
         )
