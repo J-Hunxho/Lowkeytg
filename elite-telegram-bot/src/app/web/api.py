@@ -13,9 +13,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..bootstrap import sync_bot_state
 from ..bot.main import get_private_commands
 from ..config import get_settings
-from ..db import close_engine
+from ..db import check_database_health, close_engine
 from ..logging import configure_logging, logger
-from ..schemas import CheckoutSessionRequest, CheckoutSessionResponse, HealthResponse
+from ..schemas import (
+    CheckoutSessionRequest,
+    CheckoutSessionResponse,
+    HealthResponse,
+    ReadinessResponse,
+)
 from ..services.payments import PaymentsService
 from ..services.rate_limit import RateLimiter
 from .deps import get_bot, get_db_session, get_dispatcher, get_rate_limiter
@@ -73,6 +78,41 @@ async def root() -> HealthResponse:
 @app.get("/healthz", response_model=HealthResponse)
 async def healthz() -> HealthResponse:
     return HealthResponse()
+
+
+@app.get("/readyz", response_model=ReadinessResponse)
+async def readyz() -> ReadinessResponse:
+    settings = get_settings()
+    checks: dict[str, str] = {}
+
+    try:
+        await check_database_health()
+        checks["database"] = "ok"
+    except Exception as exc:
+        logger.exception("health.database_failed", error=str(exc))
+        checks["database"] = "failed"
+        return ReadinessResponse(status="degraded", checks=checks)
+
+    checks["telegram_config"] = "ok"
+    if settings.telegram_enabled:
+        try:
+            settings.validate_telegram()
+        except RuntimeError as exc:
+            logger.warning("health.telegram_config_invalid", error=str(exc))
+            checks["telegram_config"] = "invalid"
+            return ReadinessResponse(status="degraded", checks=checks)
+
+    checks["stripe_config"] = "disabled"
+    if settings.stripe_enabled:
+        try:
+            settings.validate_stripe()
+            checks["stripe_config"] = "ok"
+        except RuntimeError as exc:
+            logger.warning("health.stripe_config_invalid", error=str(exc))
+            checks["stripe_config"] = "invalid"
+            return ReadinessResponse(status="degraded", checks=checks)
+
+    return ReadinessResponse(status="ok", checks=checks)
 
 
 @app.get("/health/webhook")

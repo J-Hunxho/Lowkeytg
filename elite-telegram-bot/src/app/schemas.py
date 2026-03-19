@@ -15,6 +15,11 @@ class HealthResponse(BaseModel):
     status: str = Field(default="ok", description="Service health status")
 
 
+class ReadinessResponse(BaseModel):
+    status: str = Field(description="Service readiness status")
+    checks: dict[str, str] = Field(default_factory=dict, description="Named readiness checks")
+
+
 # -------------------------
 # Checkout
 # -------------------------

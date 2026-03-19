@@ -15,6 +15,10 @@ from ..keyboards import referral_keyboard, shop_keyboard
 router = Router(name="base")
 
 
+def command_aliases(*names: str) -> Command:
+    return Command(commands=list(names))
+
+
 @router.message(CommandStart())
 async def cmd_start(
     message: Message,
@@ -73,7 +77,7 @@ async def cmd_help(message: Message, user: User) -> None:
     await message.answer(escape_markdown_v2(text), parse_mode="MarkdownV2")
 
 
-@router.message(Command(("account", "profile")))
+@router.message(command_aliases("account", "profile"))
 async def cmd_account(message: Message, user: User) -> None:
     username = escape_markdown_v2(user.first_name or user.username or str(user.telegram_id))
     referral_link = f"https://t.me/{settings.telegram_bot_username}?start={user.referral_code}"
@@ -99,7 +103,7 @@ async def cmd_support(message: Message) -> None:
     await message.answer("Support is available through the configured admin team. Use /help for guided flows.")
 
 
-@router.message(Command(("shop", "products")))
+@router.message(command_aliases("shop", "products"))
 async def cmd_shop(message: Message, session: AsyncSession) -> None:
     service = PaymentsService(session, bot=None)
     products = service.product_catalog()
