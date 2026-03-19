@@ -113,7 +113,7 @@ async def mini_app() -> HTMLResponse:
     return HTMLResponse(content=html)
 
 
-@app.post("/webhook/telegram")
+@app.post("webhook/telegram")
 async def telegram_webhook(
     request: Request,
     bot: Bot | None = Depends(get_bot),
