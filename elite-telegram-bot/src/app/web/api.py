@@ -1,15 +1,17 @@
 from __future__ import annotations
 
-import stripe
+import json
 
+import stripe
+from aiogram import Bot, Dispatcher
+from aiogram.types import Update
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse, JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from aiogram import Bot, Dispatcher
-from aiogram.types import Update
-
-from ..bot.main import configure_bot_commands
+from ..bootstrap import sync_bot_state
+from ..bot.main import get_private_commands
 from ..config import get_settings
 from ..db import close_engine
 from ..logging import configure_logging, logger
@@ -21,7 +23,19 @@ from .deps import get_bot, get_db_session, get_dispatcher, get_rate_limiter
 
 configure_logging()
 
-app = FastAPI(title="Elite Telegram Bot", version="0.2.0")
+app = FastAPI(title="Elite Telegram Bot", version="0.3.0")
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(_: Request, exc: RequestValidationError) -> JSONResponse:
+    logger.warning("request.validation_error", errors=exc.errors())
+    return JSONResponse(status_code=422, content={"detail": exc.errors()})
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(_: Request, exc: Exception) -> JSONResponse:
+    logger.exception("app.unhandled_exception", error=str(exc))
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 
 @app.on_event("startup")
@@ -38,17 +52,11 @@ async def on_startup() -> None:
     if bot is None:
         raise RuntimeError("Telegram enabled but TELEGRAM_BOT_TOKEN is missing")
 
-    await configure_bot_commands()
-
-    if settings.set_webhook_on_start:
-        try:
-            await bot.set_webhook(
-                url=settings.webhook_url,
-                secret_token=settings.telegram_webhook_secret_token.get_secret_value(),
-            )
-            logger.info("startup.webhook_set url=%s", settings.webhook_url)
-        except Exception as exc:
-            logger.warning("startup.webhook_failed", error=str(exc))
+    try:
+        await sync_bot_state(bot, settings, get_private_commands)
+    except Exception as exc:
+        logger.exception("startup.telegram_sync_failed", error=str(exc))
+        raise
 
 
 @app.on_event("shutdown")
@@ -65,6 +73,25 @@ async def root() -> HealthResponse:
 @app.get("/healthz", response_model=HealthResponse)
 async def healthz() -> HealthResponse:
     return HealthResponse()
+
+
+@app.get("/health/webhook")
+async def webhook_health(bot: Bot | None = Depends(get_bot)) -> JSONResponse:
+    settings = get_settings()
+    if not settings.telegram_enabled or bot is None:
+        return JSONResponse({"enabled": False, "configured": False, "url": None})
+
+    info = await bot.get_webhook_info()
+    return JSONResponse(
+        {
+            "enabled": True,
+            "configured": info.url == settings.webhook_url,
+            "expected_url": settings.webhook_url,
+            "actual_url": info.url,
+            "pending_updates": info.pending_update_count,
+            "last_error_message": info.last_error_message,
+        }
+    )
 
 
 @app.get("/mini-app", response_class=HTMLResponse)
@@ -113,7 +140,7 @@ async def mini_app() -> HTMLResponse:
     return HTMLResponse(content=html)
 
 
-@app.post("webhook/telegram")
+@app.post("/webhook/telegram")
 async def telegram_webhook(
     request: Request,
     bot: Bot | None = Depends(get_bot),
@@ -122,7 +149,6 @@ async def telegram_webhook(
     rate_limiter: RateLimiter = Depends(get_rate_limiter),
     secret_token: str | None = Header(default=None, alias="X-Telegram-Bot-Api-Secret-Token"),
 ) -> JSONResponse:
-
     settings = get_settings()
 
     if not settings.telegram_enabled:
@@ -134,7 +160,6 @@ async def telegram_webhook(
     settings.validate_telegram()
 
     expected = settings.telegram_webhook_secret_token.get_secret_value()
-
     if secret_token != expected:
         logger.warning("telegram_webhook.invalid_secret")
         raise HTTPException(status_code=401, detail="Invalid secret token")
@@ -142,7 +167,13 @@ async def telegram_webhook(
     if not await rate_limiter.allow_global("telegram", limit=300, window_seconds=1):
         raise HTTPException(status_code=429, detail="Too many updates")
 
-    update = Update.model_validate(await request.json())
+    raw_body = await request.body()
+    try:
+        payload = json.loads(raw_body)
+        update = Update.model_validate(payload)
+    except (json.JSONDecodeError, ValueError) as exc:
+        logger.warning("telegram_webhook.invalid_payload", error=str(exc))
+        raise HTTPException(status_code=400, detail="Invalid Telegram update payload") from exc
 
     try:
         await dispatcher.feed_webhook_update(
@@ -163,7 +194,6 @@ async def stripe_webhook(
     bot: Bot | None = Depends(get_bot),
     session: AsyncSession = Depends(get_db_session),
 ) -> JSONResponse:
-
     settings = get_settings()
 
     if not settings.stripe_enabled:
@@ -173,6 +203,8 @@ async def stripe_webhook(
 
     payload = await request.body()
     signature = request.headers.get("Stripe-Signature")
+    if not signature:
+        raise HTTPException(status_code=400, detail="Missing Stripe signature")
 
     try:
         event = stripe.Webhook.construct_event(
@@ -185,7 +217,6 @@ async def stripe_webhook(
         raise HTTPException(status_code=400, detail="Invalid signature") from exc
 
     service = PaymentsService(session=session, bot=bot)
-
     await service.handle_checkout_event(event.to_dict())
 
     return JSONResponse({"received": True})
@@ -196,7 +227,6 @@ async def create_checkout_session(
     payload: CheckoutSessionRequest,
     session: AsyncSession = Depends(get_db_session),
 ) -> CheckoutSessionResponse:
-
     settings = get_settings()
 
     if not settings.stripe_enabled:

@@ -5,7 +5,7 @@ import json
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from app.config import settings
+from app.config import Settings, settings
 from app.web.api import app
 
 
@@ -38,3 +38,28 @@ async def test_telegram_webhook_secret_validation() -> None:
             content=json.dumps({"update_id": 1}),
         )
     assert response.status_code == 401
+
+
+@pytest.mark.asyncio()
+async def test_telegram_webhook_rejects_bad_payload() -> None:
+    settings.set_webhook_on_start = False
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            "/webhook/telegram",
+            headers={"X-Telegram-Bot-Api-Secret-Token": settings.telegram_webhook_secret_token.get_secret_value()},
+            content="not-json",
+        )
+    assert response.status_code == 400
+
+
+def test_webhook_url_is_normalized_for_railway_domains() -> None:
+    cfg = Settings(
+        telegram_enabled=True,
+        telegram_bot_token="123456:ABC",
+        telegram_webhook_secret_token="secret",
+        railway_static_url="example.up.railway.app/",
+        webhook_path="//telegram//",
+    )
+    assert cfg.effective_public_base_url == "https://example.up.railway.app"
+    assert cfg.webhook_url == "https://example.up.railway.app/telegram"

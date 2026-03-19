@@ -37,7 +37,10 @@ async def cmd_admin(message: Message, user: User) -> None:
         escape_markdown_v2(
             "🛠 *Admin Commands*\n"
             "/stats — system stats\n"
+            "/users — total users\n"
             "/broadcast <msg> — send announcement\n"
+            "/addproduct — configure catalog via env\n"
+            "/removeproduct — disable catalog via env\n"
             "/ban <telegram_id> [reason]\n"
             "/unban <telegram_id>"
         ),
@@ -180,3 +183,37 @@ async def cmd_unban(
     await bans.remove(target_user.id)
     await session.commit()
     await message.answer(f"✅ Unbanned {target_user.telegram_id}")
+
+
+@router.message(Command("users"))
+async def cmd_users(message: Message, session: AsyncSession, user: User) -> None:
+    try:
+        _ensure_admin(user)
+    except PermissionError:
+        await _not_authorized(message)
+        return
+
+    total = await session.scalar(select(func.count(User.id)))
+    await message.answer(f"👥 Total users: {int(total or 0)}")
+
+
+@router.message(Command("addproduct"))
+async def cmd_addproduct(message: Message, user: User) -> None:
+    try:
+        _ensure_admin(user)
+    except PermissionError:
+        await _not_authorized(message)
+        return
+
+    await message.answer("Products are env-driven. Add a Stripe price env var and redeploy to publish it.")
+
+
+@router.message(Command("removeproduct"))
+async def cmd_removeproduct(message: Message, user: User) -> None:
+    try:
+        _ensure_admin(user)
+    except PermissionError:
+        await _not_authorized(message)
+        return
+
+    await message.answer("Remove the related Stripe price env var and redeploy to unpublish the product.")
