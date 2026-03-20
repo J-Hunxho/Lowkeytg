@@ -6,6 +6,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app.bot.main import get_private_commands
+from app.bootstrap import safe_sync_bot_state
 from app.config import Settings, settings
 from app.web.api import app
 
@@ -64,6 +65,13 @@ async def test_telegram_webhook_rejects_bad_payload() -> None:
     assert response.status_code == 400
 
 
+@pytest.mark.asyncio()
+async def test_safe_sync_bot_state_degrades_when_config_is_incomplete() -> None:
+    cfg = Settings(telegram_enabled=True, fail_fast_on_startup=False)
+    synced = await safe_sync_bot_state(bot=None, settings=cfg, command_factory=get_private_commands)
+    assert synced is False
+
+
 def test_webhook_url_is_normalized_for_railway_domains() -> None:
     cfg = Settings(
         telegram_enabled=True,
@@ -79,4 +87,4 @@ def test_webhook_url_is_normalized_for_railway_domains() -> None:
 
 def test_private_commands_expose_aliases_and_ops_commands() -> None:
     commands = {command.command for command in get_private_commands()}
-    assert {"profile", "app", "ban", "unban"}.issubset(commands)
+    assert {"profile", "app", "ban", "unban", "pricing", "referrals", "healthcheck", "catalogsync", "status"}.issubset(commands)

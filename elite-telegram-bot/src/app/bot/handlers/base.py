@@ -19,6 +19,13 @@ def command_aliases(*names: str) -> Command:
     return Command(commands=list(names))
 
 
+def _format_catalog(products: list[dict[str, str]]) -> str:
+    if not products:
+        return "🛒 Store is temporarily unavailable. Stripe product pricing is not configured yet."
+    lines = [f"• {product['title']} — `{product['sku']}` — {product['description']}" for product in products]
+    return "🛒 *Available Products*\n\n" + "\n".join(lines)
+
+
 @router.message(CommandStart())
 async def cmd_start(
     message: Message,
@@ -35,7 +42,7 @@ async def cmd_start(
     name = escape_markdown_v2(user.first_name or user.username or "friend")
     text = (
         f"👋 Welcome, {name}!\n\n"
-        "Use /help to explore commands, /shop to browse products, and /account to view your profile."
+        "Use /help to explore commands, /shop to browse products, /pricing to compare offers, and /account to view your profile."
     )
     await message.answer(text, parse_mode="MarkdownV2")
 
@@ -48,14 +55,18 @@ async def cmd_help(message: Message, user: User) -> None:
         "/help — command list",
         "/account — account overview",
         "/orders — order history",
+        "/pricing — compare plans",
+        "/referrals — referral performance",
         "/support — support contact",
         "",
         "🛍 *Products*",
         "/shop — browse products",
         "/products — live product list",
         "/buy <sku> — purchase",
+        "/app — launch mini app",
         "",
         "🛠 *System*",
+        "/status — stack readiness summary",
         "/webhookstatus — webhook health",
     ]
 
@@ -70,6 +81,8 @@ async def cmd_help(message: Message, user: User) -> None:
                 "/broadcast <message>",
                 "/stats — system stats",
                 "/users — user count",
+                "/healthcheck — production readiness report",
+                "/catalogsync — list live product env bindings",
             ]
         )
 
@@ -98,26 +111,75 @@ async def cmd_account(message: Message, user: User) -> None:
     )
 
 
+@router.message(Command("referrals"))
+async def cmd_referrals(message: Message, user: User) -> None:
+    referral_link = f"https://t.me/{settings.telegram_bot_username}?start={user.referral_code}"
+    text = (
+        "🎯 *Referral Engine*\n\n"
+        f"Code: `{user.referral_code}`\n"
+        f"Shares: *{user.referral_count} successful joins*\n"
+        f"Invite link: {escape_markdown_v2(referral_link)}"
+    )
+    await message.answer(escape_markdown_v2(text), parse_mode="MarkdownV2")
+
+
 @router.message(Command("support"))
 async def cmd_support(message: Message) -> None:
-    await message.answer("Support is available through the configured admin team. Use /help for guided flows.")
+    await message.answer(
+        f"Support is handled by {settings.support_contact}. Use /status before opening a ticket so the team gets context fast."
+    )
 
 
 @router.message(command_aliases("shop", "products"))
 async def cmd_shop(message: Message, session: AsyncSession) -> None:
     service = PaymentsService(session, bot=None)
     products = service.product_catalog()
+    text = _format_catalog(products)
     if not products:
-        await message.answer("🛒 Store is temporarily unavailable. Stripe product pricing is not configured yet.")
+        await message.answer(text)
         return
 
-    lines = [f"• {product['title']} — `{product['sku']}` — {product['description']}" for product in products]
-    text = "🛒 *Available Products*\n\n" + "\n".join(lines)
     await message.answer(
         escape_markdown_v2(text),
         parse_mode="MarkdownV2",
         reply_markup=shop_keyboard(products),
     )
+
+
+@router.message(Command("pricing"))
+async def cmd_pricing(message: Message, session: AsyncSession) -> None:
+    service = PaymentsService(session, bot=None)
+    products = service.product_catalog()
+    if not products:
+        await message.answer("Pricing is not published yet. Configure Stripe price IDs to go live.")
+        return
+
+    lines = [
+        f"• *{product['title']}* — SKU `{product['sku']}`\n  {product['description']}"
+        for product in products
+    ]
+    text = "💠 *Pricing Overview*\n\n" + "\n".join(lines) + "\n\nUse /buy <sku> to start checkout instantly."
+    await message.answer(escape_markdown_v2(text), parse_mode="MarkdownV2")
+
+
+@router.message(Command("status"))
+async def cmd_status(message: Message, session: AsyncSession) -> None:
+    service = PaymentsService(session, bot=None)
+    products = service.product_catalog()
+    try:
+        mini_app_url = settings.mini_app_url
+        public_url_status = f"online · {mini_app_url}"
+    except RuntimeError:
+        public_url_status = "offline · missing PUBLIC_BASE_URL"
+
+    status_text = (
+        "🧠 *Production Status*\n\n"
+        f"Telegram: *{'enabled' if settings.telegram_enabled else 'disabled'}*\n"
+        f"Stripe: *{'enabled' if settings.stripe_enabled else 'disabled'}*\n"
+        f"Catalog size: *{len(products)} live SKU(s)*\n"
+        f"Mini app: *{escape_markdown_v2(public_url_status)}*"
+    )
+    await message.answer(escape_markdown_v2(status_text), parse_mode="MarkdownV2")
 
 
 @router.message(Command("webhookstatus"))

@@ -10,7 +10,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse, JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..bootstrap import sync_bot_state
+from ..bootstrap import safe_sync_bot_state
 from ..bot.main import get_private_commands
 from ..config import get_settings
 from ..db import check_database_health, close_engine
@@ -28,7 +28,7 @@ from .deps import get_bot, get_db_session, get_dispatcher, get_rate_limiter
 
 configure_logging()
 
-app = FastAPI(title="Elite Telegram Bot", version="0.3.0")
+app = FastAPI(title="Elite Telegram Bot", version="0.4.0")
 
 
 @app.exception_handler(RequestValidationError)
@@ -46,22 +46,7 @@ async def unhandled_exception_handler(_: Request, exc: Exception) -> JSONRespons
 @app.on_event("startup")
 async def on_startup() -> None:
     settings = get_settings()
-
-    if not settings.telegram_enabled:
-        logger.info("startup.telegram_disabled")
-        return
-
-    settings.validate_telegram()
-
-    bot = get_bot()
-    if bot is None:
-        raise RuntimeError("Telegram enabled but TELEGRAM_BOT_TOKEN is missing")
-
-    try:
-        await sync_bot_state(bot, settings, get_private_commands)
-    except Exception as exc:
-        logger.exception("startup.telegram_sync_failed", error=str(exc))
-        raise
+    await safe_sync_bot_state(get_bot(), settings, get_private_commands)
 
 
 @app.on_event("shutdown")
@@ -199,7 +184,11 @@ async def telegram_webhook(
 
     settings.validate_telegram()
 
-    expected = settings.telegram_webhook_secret_token.get_secret_value()
+    expected_secret = settings.telegram_webhook_secret_token
+    if expected_secret is None:
+        raise HTTPException(status_code=503, detail="Webhook secret unavailable")
+
+    expected = expected_secret.get_secret_value()
     if secret_token != expected:
         logger.warning("telegram_webhook.invalid_secret")
         raise HTTPException(status_code=401, detail="Invalid secret token")
@@ -244,7 +233,7 @@ async def stripe_webhook(
     payload = await request.body()
     signature = request.headers.get("Stripe-Signature")
     if not signature:
-        raise HTTPException(status_code=400, detail="Missing Stripe signature")
+        raise HTTPException(status_code=400, detail="Missing Stripe-Signature header")
 
     try:
         event = stripe.Webhook.construct_event(
@@ -252,46 +241,38 @@ async def stripe_webhook(
             sig_header=signature,
             secret=settings.stripe_webhook_secret.get_secret_value(),
         )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid payload") from exc
     except stripe.error.SignatureVerificationError as exc:
-        logger.warning("stripe_webhook.invalid_signature", error=str(exc))
-        raise HTTPException(status_code=400, detail="Invalid signature") from exc
+        raise HTTPException(status_code=401, detail="Invalid signature") from exc
 
     service = PaymentsService(session=session, bot=bot)
-    await service.handle_checkout_event(event.to_dict())
+    order = await service.handle_checkout_event(event)
+    return JSONResponse({"ok": True, "order_id": order.id if order else None})
 
-    return JSONResponse({"received": True})
 
-
-@app.post("/payments/checkout", response_model=CheckoutSessionResponse)
+@app.post("/api/checkout", response_model=CheckoutSessionResponse)
 async def create_checkout_session(
     payload: CheckoutSessionRequest,
     session: AsyncSession = Depends(get_db_session),
 ) -> CheckoutSessionResponse:
     settings = get_settings()
-
     if not settings.stripe_enabled:
         raise HTTPException(status_code=403, detail="Stripe disabled")
 
-    settings.validate_stripe()
-
-    from ..repos.users import UserRepository
-
-    user_repo = UserRepository(session)
-    user = await user_repo.get_by_telegram_id(payload.telegram_id)
-
-    if not user:
+    service = PaymentsService(session=session)
+    user = await service.orders.get_user_by_telegram_id(payload.telegram_id)
+    if user is None:
         raise HTTPException(status_code=404, detail="User not found")
 
-    service = PaymentsService(session=session, bot=None)
+    try:
+        checkout = await service.create_checkout_session(
+            user=user,
+            sku=payload.sku,
+            success_url=payload.success_url,
+            cancel_url=payload.cancel_url,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    checkout = await service.create_checkout_session(
-        user=user,
-        sku=payload.sku,
-        success_url=payload.success_url,
-        cancel_url=payload.cancel_url,
-    )
-
-    return CheckoutSessionResponse(
-        url=checkout["url"],
-        session_id=checkout["session_id"],
-    )
+    return CheckoutSessionResponse(**checkout)

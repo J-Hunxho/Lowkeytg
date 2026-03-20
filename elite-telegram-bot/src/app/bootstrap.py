@@ -72,6 +72,40 @@ async def sync_bot_state(
     return updated
 
 
+async def safe_sync_bot_state(
+    bot: Bot | None,
+    settings: Settings,
+    command_factory: CommandFactory,
+) -> bool:
+    if not settings.telegram_enabled:
+        logger.info("startup.telegram_disabled")
+        return False
+
+    try:
+        settings.validate_telegram()
+    except RuntimeError as exc:
+        logger.warning("startup.telegram_config_invalid", error=str(exc))
+        if settings.fail_fast_on_startup:
+            raise
+        return False
+
+    if bot is None:
+        error = "Telegram enabled but TELEGRAM_BOT_TOKEN is missing"
+        logger.warning("startup.telegram_bot_missing", error=error)
+        if settings.fail_fast_on_startup:
+            raise RuntimeError(error)
+        return False
+
+    try:
+        await sync_bot_state(bot, settings, command_factory)
+        return True
+    except Exception as exc:
+        logger.exception("startup.telegram_sync_failed", error=str(exc))
+        if settings.fail_fast_on_startup:
+            raise
+        return False
+
+
 async def set_webhook(bot: Bot, webhook_url: str, secret_token: str) -> None:
     await _with_retry(
         "set_webhook",
