@@ -6,10 +6,12 @@ from aiogram.types import Message
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ...config import settings
 from ...models import MessageRecord, Order, Referral, User
 from ...repos.bans import BanRepository
 from ...repos.users import UserRepository
 from ...services.broadcast import BroadcastService
+from ...services.payments import PaymentsService
 from ...services.rate_limit import RateLimiter
 from ...utils.markdown import escape_markdown_v2
 
@@ -41,6 +43,8 @@ async def cmd_admin(message: Message, user: User) -> None:
             "/broadcast <msg> — send announcement\n"
             "/addproduct — configure catalog via env\n"
             "/removeproduct — disable catalog via env\n"
+            "/healthcheck — readiness report\n"
+            "/catalogsync — inspect live SKUs\n"
             "/ban <telegram_id> [reason]\n"
             "/unban <telegram_id>"
         ),
@@ -77,6 +81,47 @@ async def cmd_stats(message: Message, session: AsyncSession, user: User) -> None
         f"Referrals: `{referrals}`\n"
         f"Messages logged: `{messages}`"
     )
+    await message.answer(escape_markdown_v2(text), parse_mode="MarkdownV2")
+
+
+@router.message(Command("healthcheck"))
+async def cmd_healthcheck(message: Message, session: AsyncSession, user: User) -> None:
+    try:
+        _ensure_admin(user)
+    except PermissionError:
+        await _not_authorized(message)
+        return
+
+    service = PaymentsService(session, bot=None)
+    products = service.product_catalog()
+    checklist = [
+        f"Telegram enabled: {'yes' if settings.telegram_enabled else 'no'}",
+        f"Stripe enabled: {'yes' if settings.stripe_enabled else 'no'}",
+        f"Webhook auto-sync: {'yes' if settings.set_webhook_on_start else 'no'}",
+        f"Fail-fast startup: {'yes' if settings.fail_fast_on_startup else 'no'}",
+        f"Catalog SKU count: {len(products)}",
+        f"Public base URL configured: {'yes' if bool(settings.public_base_url or settings.railway_static_url or settings.railway_public_domain) else 'no'}",
+    ]
+    text = "🩺 *Production Readiness*\n\n" + "\n".join(f"• {item}" for item in checklist)
+    await message.answer(escape_markdown_v2(text), parse_mode="MarkdownV2")
+
+
+@router.message(Command("catalogsync"))
+async def cmd_catalogsync(message: Message, session: AsyncSession, user: User) -> None:
+    try:
+        _ensure_admin(user)
+    except PermissionError:
+        await _not_authorized(message)
+        return
+
+    service = PaymentsService(session, bot=None)
+    products = service.product_catalog()
+    if not products:
+        await message.answer("Catalog is empty. Add Stripe price IDs and redeploy.")
+        return
+
+    lines = [f"• {product['sku']} -> {product['price_id']}" for product in products]
+    text = "🧾 *Catalog Sync*\n\n" + "\n".join(lines)
     await message.answer(escape_markdown_v2(text), parse_mode="MarkdownV2")
 
 

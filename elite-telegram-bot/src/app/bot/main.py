@@ -29,6 +29,8 @@ def get_private_commands() -> list[BotCommand]:
         BotCommand(command="account", description="User · account overview"),
         BotCommand(command="profile", description="User · account alias"),
         BotCommand(command="orders", description="User · order history"),
+        BotCommand(command="pricing", description="User · compare live plans"),
+        BotCommand(command="referrals", description="User · referral performance"),
         BotCommand(command="support", description="User · support contact"),
         BotCommand(command="app", description="Products · launch mini app"),
         BotCommand(command="shop", description="Products · browse catalog"),
@@ -42,7 +44,10 @@ def get_private_commands() -> list[BotCommand]:
         BotCommand(command="users", description="Admin · user totals"),
         BotCommand(command="ban", description="Admin · block a user"),
         BotCommand(command="unban", description="Admin · restore a user"),
+        BotCommand(command="status", description="System · readiness summary"),
         BotCommand(command="webhookstatus", description="System · webhook status"),
+        BotCommand(command="healthcheck", description="Admin · readiness report"),
+        BotCommand(command="catalogsync", description="Admin · inspect live catalog"),
     ]
 
 

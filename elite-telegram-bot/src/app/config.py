@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     railway_public_domain: Optional[str] = None
     webhook_path: str = "/webhook/telegram"
     set_webhook_on_start: bool = False
+    fail_fast_on_startup: bool = False
 
     stripe_enabled: bool = False
     stripe_secret_key: Optional[SecretStr] = None
@@ -89,6 +90,10 @@ class Settings(BaseSettings):
     @property
     def webhook_url(self) -> str:
         return self.join_public_url(self.webhook_path)
+
+    @property
+    def support_contact(self) -> str:
+        return self.telegram_bot_username or "admin team"
 
     def join_public_url(self, path: str) -> str:
         base = self.effective_public_base_url.rstrip("/")

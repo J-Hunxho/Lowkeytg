@@ -14,6 +14,8 @@ class OrderRepository:
         self.session = session
 
     async def create(self, **kwargs: object) -> Order:
+        if "metadata" in kwargs and "extra_data" not in kwargs:
+            kwargs["extra_data"] = kwargs.pop("metadata")
         order = Order(**kwargs)
         self.session.add(order)
         return order
