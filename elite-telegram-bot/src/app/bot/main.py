@@ -16,6 +16,12 @@ from .middlewares import BanMiddleware, RateLimitMiddleware, UserContextMiddlewa
 <<<<<<< codex/prepare-telegram-bot-for-saas-deployment-mr4yyh
 
 def _build_bot() -> Bot | None:
+    """
+    Create and return a configured Telegram Bot instance when Telegram is enabled and a valid token is available.
+    
+    Returns:
+        Bot | None: A Bot initialized with the configured Telegram token, or `None` if Telegram is disabled, the token is missing, or token initialization failed.
+    """
     if not settings.telegram_enabled:
         return None
 
@@ -31,6 +37,12 @@ def _build_bot() -> Bot | None:
 =======
 
 def _build_bot() -> Bot | None:
+    """
+    Create a Telegram Bot instance using the configured token, or return None if no token is configured.
+    
+    Returns:
+        Bot | None: A Bot constructed with the configured token, or `None` when `settings.telegram_bot_token` is not set.
+    """
     if not settings.telegram_bot_token:
         return None
     return Bot(token=settings.telegram_bot_token.get_secret_value())
