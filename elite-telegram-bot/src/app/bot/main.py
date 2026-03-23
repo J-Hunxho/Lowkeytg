@@ -4,17 +4,37 @@ from aiogram import Bot, Dispatcher
 from aiogram.types import BotCommand, BotCommandScopeAllPrivateChats
 
 from ..config import settings
+from ..config import settings
+from ..logging import logger
+from ..services.rate_limit import RateLimiter
 from ..services.rate_limit import RateLimiter
 from .handlers.admin import router as admin_router
 from .handlers.base import router as base_router
 from .handlers.payments import router as payments_router
 from .middlewares import BanMiddleware, RateLimitMiddleware, UserContextMiddleware
 
+<<<<<<< codex/prepare-telegram-bot-for-saas-deployment-mr4yyh
+
+def _build_bot() -> Bot | None:
+    if not settings.telegram_enabled:
+        return None
+
+    if not settings.telegram_bot_token:
+        logger.warning("bot.init.missing_token")
+        return None
+
+    try:
+        return Bot(token=settings.telegram_bot_token.get_secret_value())
+    except Exception as exc:  # pragma: no cover - invalid env token format
+        logger.error("bot.init.invalid_token", error=str(exc))
+        return None
+=======
 
 def _build_bot() -> Bot | None:
     if not settings.telegram_bot_token:
         return None
     return Bot(token=settings.telegram_bot_token.get_secret_value())
+>>>>>>> Main
 
 
 bot = _build_bot()
