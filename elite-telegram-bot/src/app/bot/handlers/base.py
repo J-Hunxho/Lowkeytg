@@ -7,11 +7,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...config import settings
 from ...models import User
+from ...services.payments import PaymentsService
 from ...services.referrals import ReferralService
 from ...utils.markdown import escape_markdown_v2
 from ..keyboards import referral_keyboard, shop_keyboard
 
 router = Router(name="base")
+
+
+def command_aliases(*names: str) -> Command:
+    return Command(commands=list(names))
+
+
+def _format_catalog(products: list[dict[str, str]]) -> str:
+    if not products:
+        return "🛒 Store is temporarily unavailable. Stripe product pricing is not configured yet."
+    lines = [f"• {product['title']} — `{product['sku']}` — {product['description']}" for product in products]
+    return "🛒 *Available Products*\n\n" + "\n".join(lines)
 
 
 @router.message(CommandStart())
@@ -28,22 +40,34 @@ async def cmd_start(
         await service.process_referral(user, referral_code)
 
     name = escape_markdown_v2(user.first_name or user.username or "friend")
-    text = f"👋 Welcome, {name}!\n\nUse /help to explore available commands."
+    text = (
+        f"👋 Welcome, {name}!\n\n"
+        "Use /help to explore commands, /shop to browse products, /pricing to compare offers, and /account to view your profile."
+    )
     await message.answer(text, parse_mode="MarkdownV2")
 
 
 @router.message(Command("help"))
 async def cmd_help(message: Message, user: User) -> None:
     commands = [
-        "/start — restart bot",
+        "👤 *User*",
+        "/start — onboarding flow",
         "/help — command list",
-        "/profile — your account",
-        "/ping — health check",
-        "/about — bot info",
-        "/shop — browse products",
-        "/buy <sku> — purchase",
+        "/account — account overview",
         "/orders — order history",
-        "/app — open mini app",
+        "/pricing — compare plans",
+        "/referrals — referral performance",
+        "/support — support contact",
+        "",
+        "🛍 *Products*",
+        "/shop — browse products",
+        "/products — live product list",
+        "/buy <sku> — purchase",
+        "/app — launch mini app",
+        "",
+        "🛠 *System*",
+        "/status — stack readiness summary",
+        "/webhookstatus — webhook health",
     ]
 
     if user.is_admin:
@@ -51,11 +75,14 @@ async def cmd_help(message: Message, user: User) -> None:
             [
                 "",
                 "🔐 *Admin*",
-                "/admin",
-                "/stats",
+                "/admin — admin panel",
+                "/addproduct — product config note",
+                "/removeproduct — product config note",
                 "/broadcast <message>",
-                "/ban <telegram_id>",
-                "/unban <telegram_id>",
+                "/stats — system stats",
+                "/users — user count",
+                "/healthcheck — production readiness report",
+                "/catalogsync — list live product env bindings",
             ]
         )
 
@@ -63,32 +90,18 @@ async def cmd_help(message: Message, user: User) -> None:
     await message.answer(escape_markdown_v2(text), parse_mode="MarkdownV2")
 
 
-@router.message(Command("ping"))
-async def cmd_ping(message: Message) -> None:
-    await message.answer("🏓 PONG")
-
-
-@router.message(Command("about"))
-async def cmd_about(message: Message) -> None:
-    about = (
-        "🤖 *LowkeyTG*\n\n"
-        "Elite Telegram bot engineered by *Hunxho Codex*.\n"
-        "Built with aiogram, FastAPI, and Stripe Checkout."
-    )
-    await message.answer(escape_markdown_v2(about), parse_mode="MarkdownV2")
-
-
-@router.message(Command("profile"))
-async def cmd_profile(message: Message, user: User) -> None:
+@router.message(command_aliases("account", "profile"))
+async def cmd_account(message: Message, user: User) -> None:
     username = escape_markdown_v2(user.first_name or user.username or str(user.telegram_id))
     referral_link = f"https://t.me/{settings.telegram_bot_username}?start={user.referral_code}"
 
     text = (
-        "👤 *Profile*\n\n"
+        "👤 *Account*\n\n"
         f"Name: {username}\n"
         f"Referral code: `{user.referral_code}`\n"
         f"Referral link: {escape_markdown_v2(referral_link)}\n"
-        f"Referrals: *{user.referral_count}*"
+        f"Referrals: *{user.referral_count}*\n"
+        f"Admin: *{'yes' if user.is_admin else 'no'}*"
     )
 
     await message.answer(
@@ -98,19 +111,103 @@ async def cmd_profile(message: Message, user: User) -> None:
     )
 
 
-@router.message(Command("shop"))
-async def cmd_shop(message: Message) -> None:
-    await message.answer(
-        "🛒 *Select a product:*",
-        parse_mode="MarkdownV2",
-        reply_markup=shop_keyboard(),
+@router.message(Command("referrals"))
+async def cmd_referrals(message: Message, user: User) -> None:
+    referral_link = f"https://t.me/{settings.telegram_bot_username}?start={user.referral_code}"
+    text = (
+        "🎯 *Referral Engine*\n\n"
+        f"Code: `{user.referral_code}`\n"
+        f"Shares: *{user.referral_count} successful joins*\n"
+        f"Invite link: {escape_markdown_v2(referral_link)}"
     )
+    await message.answer(escape_markdown_v2(text), parse_mode="MarkdownV2")
+
+
+@router.message(Command("support"))
+async def cmd_support(message: Message) -> None:
+    await message.answer(
+        f"Support is handled by {settings.support_contact}. Use /status before opening a ticket so the team gets context fast."
+    )
+
+
+@router.message(command_aliases("shop", "products"))
+async def cmd_shop(message: Message, session: AsyncSession) -> None:
+    service = PaymentsService(session, bot=None)
+    products = service.product_catalog()
+    text = _format_catalog(products)
+    if not products:
+        await message.answer(text)
+        return
+
+    await message.answer(
+        escape_markdown_v2(text),
+        parse_mode="MarkdownV2",
+        reply_markup=shop_keyboard(products),
+    )
+
+
+@router.message(Command("pricing"))
+async def cmd_pricing(message: Message, session: AsyncSession) -> None:
+    service = PaymentsService(session, bot=None)
+    products = service.product_catalog()
+    if not products:
+        await message.answer("Pricing is not published yet. Configure Stripe price IDs to go live.")
+        return
+
+    lines = [
+        f"• *{product['title']}* — SKU `{product['sku']}`\n  {product['description']}"
+        for product in products
+    ]
+    text = "💠 *Pricing Overview*\n\n" + "\n".join(lines) + "\n\nUse /buy <sku> to start checkout instantly."
+    await message.answer(escape_markdown_v2(text), parse_mode="MarkdownV2")
+
+
+@router.message(Command("status"))
+async def cmd_status(message: Message, session: AsyncSession) -> None:
+    service = PaymentsService(session, bot=None)
+    products = service.product_catalog()
+    try:
+        mini_app_url = settings.mini_app_url
+        public_url_status = f"online · {mini_app_url}"
+    except RuntimeError:
+        public_url_status = "offline · missing PUBLIC_BASE_URL"
+
+    status_text = (
+        "🧠 *Production Status*\n\n"
+        f"Telegram: *{'enabled' if settings.telegram_enabled else 'disabled'}*\n"
+        f"Stripe: *{'enabled' if settings.stripe_enabled else 'disabled'}*\n"
+        f"Catalog size: *{len(products)} live SKU(s)*\n"
+        f"Mini app: *{escape_markdown_v2(public_url_status)}*"
+    )
+    await message.answer(escape_markdown_v2(status_text), parse_mode="MarkdownV2")
+
+
+@router.message(Command("webhookstatus"))
+async def cmd_webhookstatus(message: Message) -> None:
+    try:
+        expected_url = settings.webhook_url
+    except RuntimeError:
+        await message.answer("Webhook base URL is not configured.")
+        return
+
+    info = await message.bot.get_webhook_info()
+    configured = "yes" if info.url == expected_url else "no"
+    text = (
+        "🔌 *Webhook Status*\n\n"
+        f"Expected: {escape_markdown_v2(expected_url)}\n"
+        f"Actual: {escape_markdown_v2(info.url or 'not set')}\n"
+        f"Configured: *{configured}*\n"
+        f"Pending updates: *{info.pending_update_count}*"
+    )
+    await message.answer(escape_markdown_v2(text), parse_mode="MarkdownV2")
 
 
 @router.message(Command("app"))
 async def cmd_app(message: Message) -> None:
-    if not settings.public_base_url:
-        await message.answer("Mini app unavailable: set PUBLIC_BASE_URL first.")
+    try:
+        mini_app_url = settings.mini_app_url
+    except RuntimeError:
+        await message.answer("Mini app unavailable: configure PUBLIC_BASE_URL or Railway public URL first.")
         return
 
     await message.answer(
@@ -120,7 +217,7 @@ async def cmd_app(message: Message) -> None:
                 [
                     InlineKeyboardButton(
                         text="Launch Mini App",
-                        web_app=WebAppInfo(url=f"{settings.public_base_url}/mini-app"),
+                        web_app=WebAppInfo(url=mini_app_url),
                     )
                 ]
             ]
