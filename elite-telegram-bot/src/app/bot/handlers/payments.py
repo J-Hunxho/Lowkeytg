@@ -16,18 +16,14 @@ from ..keyboards import checkout_keyboard
 router = Router(name="payments")
 
 
-# -------------------------
-# Helpers
-# -------------------------
-
-
-async def _create_checkout(
-    *,
-    user: User,
-    session: AsyncSession,
-    sku: str,
-) -> Optional[str]:
+async def _create_checkout(*, user: User, session: AsyncSession, sku: str) -> Optional[str]:
     if not settings.stripe_secret_key:
+        return None
+
+    try:
+        success_url = settings.join_public_url("/payments/success")
+        cancel_url = settings.join_public_url("/payments/cancel")
+    except RuntimeError:
         return None
 
     service = PaymentsService(session, bot=None)
@@ -36,17 +32,12 @@ async def _create_checkout(
         checkout = await service.create_checkout_session(
             user=user,
             sku=sku,
-            success_url=f"{settings.public_base_url}/payments/success",
-            cancel_url=f"{settings.public_base_url}/payments/cancel",
+            success_url=success_url,
+            cancel_url=cancel_url,
         )
         return checkout["url"]
     except ValueError:
         return None
-
-
-# -------------------------
-# /buy
-# -------------------------
 
 
 @router.message(Command("buy"))
@@ -66,7 +57,7 @@ async def cmd_buy(
     url = await _create_checkout(user=user, session=session, sku=sku)
     if not url:
         await message.answer(
-            "❌ Checkout unavailable.\nEnsure the SKU exists and Stripe is configured."
+            "❌ Checkout unavailable.\nEnsure the SKU exists, PUBLIC_BASE_URL is valid, and Stripe is configured."
         )
         return
 
@@ -75,11 +66,6 @@ async def cmd_buy(
         parse_mode="MarkdownV2",
         reply_markup=checkout_keyboard(url),
     )
-
-
-# -------------------------
-# Inline buy (callback)
-# -------------------------
 
 
 @router.callback_query(lambda q: q.data and q.data.startswith("buy:"))
@@ -101,11 +87,6 @@ async def cb_buy(
         reply_markup=checkout_keyboard(url),
     )
     await callback.answer()
-
-
-# -------------------------
-# /orders
-# -------------------------
 
 
 @router.message(Command("orders"))
