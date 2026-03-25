@@ -62,3 +62,16 @@ class OrderRead(BaseModel):
     paid_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class AIChatRequest(BaseModel):
+    telegram_id: int = Field(..., gt=0, description="Telegram user ID")
+    prompt: str = Field(..., min_length=1, description="AI prompt")
+
+
+class AIChatResponse(BaseModel):
+    reply: str
+    tier: str
+    model: str
+    provider: str
+    latency_ms: int

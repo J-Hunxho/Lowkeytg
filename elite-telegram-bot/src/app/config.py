@@ -33,6 +33,12 @@ class Settings(BaseSettings):
     stripe_enabled: bool = False
     stripe_secret_key: Optional[SecretStr] = None
     stripe_webhook_secret: Optional[SecretStr] = None
+    ai_enabled: bool = False
+    ai_provider: str = "openai"
+    ai_default_model: str = "gpt-4o-mini"
+    ai_openai_api_key: Optional[SecretStr] = None
+    ai_openai_base_url: str = "https://api.openai.com/v1"
+    ai_openai_timeout_seconds: int = 30
 
     price_id_founder_key: Optional[str] = None
     price_id_vip_month: Optional[str] = None
@@ -40,6 +46,7 @@ class Settings(BaseSettings):
 
     database_url: str = "sqlite+aiosqlite:///./data.db"
     redis_url: Optional[str] = None
+    notify_admin_on_sale: bool = True
 
     admin_user_ids: Tuple[int, ...] = ()
 
@@ -91,6 +98,11 @@ class Settings(BaseSettings):
     def webhook_url(self) -> str:
         return self.join_public_url(self.webhook_path)
 
+
+    @property
+    def webhook_mode(self) -> bool:
+        return self.telegram_enabled and self.set_webhook_on_start
+
     @property
     def support_contact(self) -> str:
         return self.telegram_bot_username or "admin team"
@@ -119,6 +131,20 @@ class Settings(BaseSettings):
             missing.append("STRIPE_WEBHOOK_SECRET")
         if missing:
             raise RuntimeError(f"Stripe configuration incomplete: {', '.join(missing)}")
+
+    def validate_ai(self) -> None:
+        if not self.ai_enabled:
+            return
+        if self.ai_provider == "openai" and not self.ai_openai_api_key:
+            raise RuntimeError("AI configuration incomplete: AI_OPENAI_API_KEY required for AI_PROVIDER=openai")
+
+    def validate_runtime(self) -> None:
+        if self.telegram_enabled:
+            self.validate_telegram()
+        if self.stripe_enabled:
+            self.validate_stripe()
+        self.validate_ai()
+
 
 
 @lru_cache(maxsize=1)
