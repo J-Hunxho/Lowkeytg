@@ -6,7 +6,7 @@ from typing import List, Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models import Order
+from ..models import Order, User
 
 
 class OrderRepository:
@@ -20,10 +20,12 @@ class OrderRepository:
         self.session.add(order)
         return order
 
+    async def get_user_by_telegram_id(self, telegram_id: int) -> Optional[User]:
+        result = await self.session.execute(select(User).where(User.telegram_id == telegram_id))
+        return result.scalars().first()
+
     async def get_by_checkout_id(self, checkout_id: str) -> Optional[Order]:
-        result = await self.session.execute(
-            select(Order).where(Order.stripe_checkout_id == checkout_id)
-        )
+        result = await self.session.execute(select(Order).where(Order.stripe_checkout_id == checkout_id))
         return result.scalars().first()
 
     async def list_for_user(self, user_id: int) -> List[Order]:

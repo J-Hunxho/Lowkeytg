@@ -7,7 +7,8 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...config import settings
-from ...models import MessageRecord, Order, Referral, User
+from ...logging import logger
+from ...models import MessageRecord, Order, Product, Referral, User
 from ...repos.bans import BanRepository
 from ...repos.users import UserRepository
 from ...services.broadcast import BroadcastService
@@ -38,13 +39,12 @@ async def cmd_admin(message: Message, user: User) -> None:
     await message.answer(
         escape_markdown_v2(
             "🛠 *Admin Commands*\n"
+            "/sync_products — sync Stripe products\n"
+            "/reload_settings — confirm runtime settings\n"
+            "/broadcast_product <sku> — blast one product\n"
+            "/broadcast <msg> — send announcement\n"
             "/stats — system stats\n"
             "/users — total users\n"
-            "/broadcast <msg> — send announcement\n"
-            "/addproduct — configure catalog via env\n"
-            "/removeproduct — disable catalog via env\n"
-            "/healthcheck — readiness report\n"
-            "/catalogsync — inspect live SKUs\n"
             "/ban <telegram_id> [reason]\n"
             "/unban <telegram_id>"
         ),
@@ -60,54 +60,42 @@ async def cmd_stats(message: Message, session: AsyncSession, user: User) -> None
         await _not_authorized(message)
         return
 
-    counts = await session.execute(
-        select(
-            func.count(User.id),
-            func.count(Order.id),
-            func.count(Referral.id),
-            func.count(MessageRecord.id),
-        )
-        .select_from(User)
-        .outerjoin(Order)
-        .outerjoin(Referral)
-        .outerjoin(MessageRecord)
-    )
+    users = await session.scalar(select(func.count(User.id)))
+    orders = await session.scalar(select(func.count(Order.id)))
+    referrals = await session.scalar(select(func.count(Referral.id)))
+    messages = await session.scalar(select(func.count(MessageRecord.id)))
 
-    users, orders, referrals, messages = counts.one()
     text = (
         "📊 *System Stats*\n"
-        f"Users: `{users}`\n"
-        f"Orders: `{orders}`\n"
-        f"Referrals: `{referrals}`\n"
-        f"Messages logged: `{messages}`"
+        f"Users: `{int(users or 0)}`\n"
+        f"Orders: `{int(orders or 0)}`\n"
+        f"Referrals: `{int(referrals or 0)}`\n"
+        f"Messages logged: `{int(messages or 0)}`"
     )
     await message.answer(escape_markdown_v2(text), parse_mode="MarkdownV2")
 
 
-@router.message(Command("healthcheck"))
-async def cmd_healthcheck(message: Message, session: AsyncSession, user: User) -> None:
+@router.message(Command("reload_settings"))
+async def cmd_reload_settings(message: Message, user: User) -> None:
     try:
         _ensure_admin(user)
     except PermissionError:
         await _not_authorized(message)
         return
 
-    service = PaymentsService(session, bot=None)
-    products = service.product_catalog()
-    checklist = [
-        f"Telegram enabled: {'yes' if settings.telegram_enabled else 'no'}",
-        f"Stripe enabled: {'yes' if settings.stripe_enabled else 'no'}",
-        f"Webhook auto-sync: {'yes' if settings.set_webhook_on_start else 'no'}",
-        f"Fail-fast startup: {'yes' if settings.fail_fast_on_startup else 'no'}",
-        f"Catalog SKU count: {len(products)}",
-        f"Public base URL configured: {'yes' if bool(settings.public_base_url or settings.railway_static_url or settings.railway_public_domain) else 'no'}",
+    checks = [
+        f"telegram_enabled={settings.telegram_enabled}",
+        f"stripe_enabled={settings.stripe_enabled}",
+        f"set_webhook_on_start={settings.set_webhook_on_start}",
+        f"webhook_path={settings.webhook_path}",
+        f"admin_count={len(settings.admin_user_ids)}",
     ]
-    text = "🩺 *Production Readiness*\n\n" + "\n".join(f"• {item}" for item in checklist)
-    await message.answer(escape_markdown_v2(text), parse_mode="MarkdownV2")
+    await message.answer("✅ Runtime settings loaded:\n" + "\n".join(checks))
 
 
+@router.message(Command("sync_products"))
 @router.message(Command("catalogsync"))
-async def cmd_catalogsync(message: Message, session: AsyncSession, user: User) -> None:
+async def cmd_sync_products(message: Message, session: AsyncSession, user: User) -> None:
     try:
         _ensure_admin(user)
     except PermissionError:
@@ -115,14 +103,60 @@ async def cmd_catalogsync(message: Message, session: AsyncSession, user: User) -
         return
 
     service = PaymentsService(session, bot=None)
-    products = service.product_catalog()
-    if not products:
-        await message.answer("Catalog is empty. Add Stripe price IDs and redeploy.")
+    try:
+        synced = await service.sync_products_from_stripe()
+    except Exception as exc:
+        logger.exception("admin.sync_products_failed", error=str(exc), admin=user.telegram_id)
+        await message.answer("Sync failed. Verify Stripe credentials and network access.")
         return
 
-    lines = [f"• {product['sku']} -> {product['price_id']}" for product in products]
-    text = "🧾 *Catalog Sync*\n\n" + "\n".join(lines)
+    products = await service.product_catalog()
+    lines = [f"• {product['sku']} → {product['price_id']}" for product in products[:20]]
+    text = f"🧾 *Catalog Sync*\n\nSynced: *{synced}*\n" + "\n".join(lines)
     await message.answer(escape_markdown_v2(text), parse_mode="MarkdownV2")
+
+
+@router.message(Command("broadcast_product"))
+async def cmd_broadcast_product(
+    message: Message,
+    command: CommandObject | None,
+    session: AsyncSession,
+    user: User,
+    rate_limiter: RateLimiter,
+) -> None:
+    try:
+        _ensure_admin(user)
+    except PermissionError:
+        await _not_authorized(message)
+        return
+
+    sku = command.args.strip() if command and command.args else ""
+    if not sku:
+        await message.answer("Usage: /broadcast_product <sku>")
+        return
+
+    product = await session.scalar(select(Product).where(Product.sku == sku, Product.active.is_(True)))
+    if product is None:
+        await message.answer("Product not found or inactive.")
+        return
+
+    text = (
+        f"🔥 New offer: {product.title}\n"
+        f"SKU: {product.sku}\n"
+        f"{product.description or 'Tap /shop to view details and purchase.'}"
+    )
+
+    repo = UserRepository(session)
+    service = BroadcastService(
+        session=session,
+        bot=message.bot,
+        rate_limiter=rate_limiter,
+        users=repo,
+        concurrency=10,
+    )
+    await message.answer("📣 Broadcasting product…")
+    summary = await service.send(await repo.list_user_ids(), text)
+    await message.answer(f"✅ Product broadcast done. Sent={summary.sent} Failed={summary.failed}")
 
 
 @router.message(Command("broadcast"))
@@ -240,25 +274,3 @@ async def cmd_users(message: Message, session: AsyncSession, user: User) -> None
 
     total = await session.scalar(select(func.count(User.id)))
     await message.answer(f"👥 Total users: {int(total or 0)}")
-
-
-@router.message(Command("addproduct"))
-async def cmd_addproduct(message: Message, user: User) -> None:
-    try:
-        _ensure_admin(user)
-    except PermissionError:
-        await _not_authorized(message)
-        return
-
-    await message.answer("Products are env-driven. Add a Stripe price env var and redeploy to publish it.")
-
-
-@router.message(Command("removeproduct"))
-async def cmd_removeproduct(message: Message, user: User) -> None:
-    try:
-        _ensure_admin(user)
-    except PermissionError:
-        await _not_authorized(message)
-        return
-
-    await message.answer("Remove the related Stripe price env var and redeploy to unpublish the product.")

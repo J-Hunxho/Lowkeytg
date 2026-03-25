@@ -8,6 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
 from ..repos.bans import BanRepository
+from sqlalchemy import select
+
+from ..models import TelegramProfile
 from ..repos.users import UserRepository
 from ..services.rate_limit import RateLimiter
 
@@ -29,6 +32,15 @@ class UserContextMiddleware(BaseMiddleware):
             language_code=telegram_user.language_code,
             is_admin=telegram_user.id in settings.admin_user_ids,
         )
+        profile = await session.scalar(select(TelegramProfile).where(TelegramProfile.user_id == user.id))
+        if profile is None:
+            profile = TelegramProfile(user_id=user.id, telegram_id=telegram_user.id)
+            session.add(profile)
+        profile.telegram_id = telegram_user.id
+        profile.username = telegram_user.username
+        profile.first_name = telegram_user.first_name
+        profile.last_name = telegram_user.last_name
+        profile.language_code = telegram_user.language_code
         data["user"] = user
         return await handler(event, data)
 
