@@ -63,6 +63,18 @@ class Settings(BaseSettings):
             return tuple(int(part.strip()) for part in value.split(",") if part.strip().isdigit())
         return ()
 
+    @field_validator("public_base_url", mode="before")
+    @classmethod
+    def parse_public_base_url(cls, value: str | None) -> str | None:
+        if not value:
+            return None
+        try:
+            from pydantic import AnyUrl as _AnyUrl
+            _AnyUrl(value)
+            return value
+        except Exception:
+            return None
+
     @field_validator("railway_static_url", "railway_public_domain", mode="before")
     @classmethod
     def normalize_optional_domain(cls, value: str | None) -> str | None:
