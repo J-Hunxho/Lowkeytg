@@ -52,12 +52,16 @@ class Settings(BaseSettings):
 
     @field_validator("admin_user_ids", mode="before")
     @classmethod
-    def parse_admins(cls, value: str | Tuple[int, ...] | None) -> Tuple[int, ...]:
-        if not value:
+    def parse_admins(cls, value: str | int | list | Tuple[int, ...] | None) -> Tuple[int, ...]:
+        if not value and value != 0:
             return ()
-        if isinstance(value, tuple):
-            return value
-        return tuple(int(part.strip()) for part in value.split(",") if part.strip().isdigit())
+        if isinstance(value, int):
+            return (value,)
+        if isinstance(value, (list, tuple)):
+            return tuple(int(v) for v in value)
+        if isinstance(value, str):
+            return tuple(int(part.strip()) for part in value.split(",") if part.strip().isdigit())
+        return ()
 
     @field_validator("railway_static_url", "railway_public_domain", mode="before")
     @classmethod
