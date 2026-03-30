@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from ..config import settings
+from ..db import AsyncSessionLocal
 from ..models import TelegramProfile
 from ..repos.users import UserRepository
 from ..repos.bans import BanRepository
@@ -19,6 +20,40 @@ from ..services.retention import RetentionService
 Handler = Callable[[TelegramObject, Dict[str, Any]], Awaitable[Any]]
 
 logger = logging.getLogger(__name__)
+
+
+# =========================
+# DATABASE SESSION INJECTION
+# =========================
+class DBSessionMiddleware(BaseMiddleware):
+    """
+    Ensures `data['session']` exists for every update.
+    Reuses upstream-provided session (web/api dependency injection) when present.
+    """
+
+    async def __call__(
+        self,
+        handler: Handler,
+        event: TelegramObject,
+        data: Dict[str, Any],
+    ) -> Any:
+        existing: AsyncSession | None = data.get("session")
+        if existing is not None:
+            return await handler(event, data)
+
+        try:
+            async with AsyncSessionLocal() as session:
+                data["session"] = session
+                try:
+                    result = await handler(event, data)
+                    await session.commit()
+                    return result
+                except Exception:
+                    await session.rollback()
+                    raise
+        except Exception:
+            logger.exception("DBSessionMiddleware failure")
+            return None
 
 
 # =========================
@@ -35,8 +70,9 @@ class UserContextMiddleware(BaseMiddleware):
         telegram_user = getattr(event, "from_user", None)
 
         if not session:
-            raise RuntimeError("Session middleware not initialized")
-            
+            logger.warning("UserContextMiddleware missing session; continuing without context injection")
+            return await handler(event, data)
+
         if not telegram_user:
             return await handler(event, data)
 

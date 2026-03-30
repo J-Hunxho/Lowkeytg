@@ -9,7 +9,7 @@ from ..services.rate_limit import RateLimiter
 from .handlers.admin import router as admin_router
 from .handlers.base import router as base_router
 from .handlers.payments import router as payments_router
-from .middlewares import BanMiddleware, RateLimitMiddleware, UserContextMiddleware
+from .middlewares import BanMiddleware, DBSessionMiddleware, RateLimitMiddleware, UserContextMiddleware
 
 
 def _build_bot() -> Bot | None:
@@ -61,6 +61,7 @@ def get_admin_commands() -> list[BotCommand]:
 
 
 def configure_dispatcher() -> None:
+    dispatcher.update.middleware(DBSessionMiddleware())
     dispatcher.update.middleware(UserContextMiddleware())
     dispatcher.update.middleware(BanMiddleware())
     dispatcher.update.middleware(RateLimitMiddleware(rate_limiter))
