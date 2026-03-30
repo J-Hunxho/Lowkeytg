@@ -23,7 +23,7 @@ async def start_bot() -> None:
             await session.commit()
             return result
 
-    dispatcher.update.outer_middleware(session_middleware)
+    dispatcher.update.middleware(session_middleware)
     await dispatcher.start_polling(bot)
 
 
