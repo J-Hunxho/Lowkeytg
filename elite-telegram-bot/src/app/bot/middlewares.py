@@ -35,7 +35,7 @@ class UserContextMiddleware(BaseMiddleware):
         telegram_user = getattr(event, "from_user", None)
 
         if not session:
-            raise RuntimeError("Sessuion middleware not initialized")
+            raise RuntimeError("Session middleware not initialized")
             
         if not telegram_user:
             return await handler(event, data)
