@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from contextlib import asynccontextmanager
+from pathlib import Path
 from secrets import compare_digest
 
 import stripe
@@ -20,7 +21,7 @@ from ..bot.main import get_private_commands
 from ..config import get_settings
 from ..db import check_database_health, close_engine
 from ..logging import configure_logging, logger
-from ..models import AccessGrant, AdminSetting, Order, StripeSubscription, User
+from ..models import AccessGrant, AdminSetting, Order, StripeSubscription, User, UserBadge, UserStreak
 from ..schemas import (
     AIChatRequest,
     AIChatResponse,
@@ -84,6 +85,7 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title="Elite Telegram Bot", version="0.6.0", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory="src/app/web/static"), name="static")
+MINI_APP_TEMPLATE = Path("src/app/web/templates/miniapp.html")
 
 
 @app.exception_handler(RequestValidationError)
@@ -185,14 +187,16 @@ async def account_state(telegram_id: int, session: AsyncSession = Depends(get_db
         user = await session.scalar(select(User).where(User.telegram_id == telegram_id))
     except Exception as exc:
         logger.warning("account.state_unavailable", error=str(exc))
-        return JSONResponse({"orders_count": 0, "subscriptions_count": 0, "active_access_count": 0, "is_admin": False, "ai": {"tier": "free", "daily_limit": 0, "used_today": 0, "remaining_today": 0}})
+        return JSONResponse({"orders_count": 0, "subscriptions_count": 0, "active_access_count": 0, "is_admin": False, "streak_days": 0, "badges": [], "ai": {"tier": "free", "daily_limit": 0, "used_today": 0, "remaining_today": 0}})
 
     if user is None:
-        return JSONResponse({"orders_count": 0, "subscriptions_count": 0, "active_access_count": 0, "is_admin": False, "ai": {"tier": "free", "daily_limit": 0, "used_today": 0, "remaining_today": 0}})
+        return JSONResponse({"orders_count": 0, "subscriptions_count": 0, "active_access_count": 0, "is_admin": False, "streak_days": 0, "badges": [], "ai": {"tier": "free", "daily_limit": 0, "used_today": 0, "remaining_today": 0}})
 
     orders_count = await session.scalar(select(func.count(Order.id)).where(Order.user_id == user.id))
     subscriptions_count = await session.scalar(select(func.count(StripeSubscription.id)).where(StripeSubscription.user_id == user.id, StripeSubscription.status.in_(["active", "trialing", "past_due"])))
     active_access_count = await session.scalar(select(func.count(AccessGrant.id)).where(AccessGrant.user_id == user.id, AccessGrant.active.is_(True)))
+    streak = await session.scalar(select(UserStreak).where(UserStreak.user_id == user.id))
+    badges = list((await session.execute(select(UserBadge).where(UserBadge.user_id == user.id).order_by(UserBadge.granted_at.desc()).limit(5))).scalars())
     try:
         ai_status = await AIService(session).usage_snapshot(user)
     except AIServiceDisabled:
@@ -203,6 +207,8 @@ async def account_state(telegram_id: int, session: AsyncSession = Depends(get_db
             "subscriptions_count": int(subscriptions_count or 0),
             "active_access_count": int(active_access_count or 0),
             "is_admin": bool(user.is_admin),
+            "streak_days": int(streak.current_streak if streak else 0),
+            "badges": [badge.label for badge in badges],
             "ai": ai_status,
         }
     )
@@ -240,82 +246,7 @@ async def payment_cancel() -> HTMLResponse:
 
 @app.get("/mini-app", response_class=HTMLResponse)
 async def mini_app() -> HTMLResponse:
-    html = """
-<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Lowkey Marketplace</title>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <link rel="stylesheet" href="/static/miniapp.css" />
-  </head>
-  <body>
-    <div class="wrap">
-      <section class="hero">
-        <h1>Lowkey Premium Marketplace</h1>
-        <p id="hero-user">Loading user context…</p>
-        <div class="badges">
-          <span class="badge featured">Stripe Live Catalog</span>
-          <span class="badge">Mobile-first</span>
-          <span class="badge">Telegram Native</span>
-        </div>
-      </section>
-
-      <section class="section">
-        <h2>Account Status</h2>
-        <div class="account-row">
-          <div class="stat"><div class="k">Orders</div><div id="orders-count">-</div></div>
-          <div class="stat"><div class="k">Subscriptions</div><div id="subs-count">-</div></div>
-          <div class="stat"><div class="k">Active Access</div><div id="access-count">-</div></div>
-        </div>
-        <p class="notice" id="account-note">Loading account…</p>
-        <div id="admin-actions" class="actions"></div>
-      </section>
-
-      <section class="section">
-        <h2>AI Assistant</h2>
-        <p class="notice" id="ai-status">Loading AI status…</p>
-        <textarea id="ai-prompt" rows="4" placeholder="Ask AI anything…"></textarea>
-        <div class="actions">
-          <button id="ai-send" class="buy">Send</button>
-        </div>
-        <div id="ai-response" class="notice"></div>
-      </section>
-
-      <section class="section">
-        <h2>Featured Offers</h2>
-        <div id="featured-grid" class="grid"></div>
-      </section>
-
-      <section class="section">
-        <h2>Marketplace</h2>
-        <div id="filters" class="filters"></div>
-        <div id="market-grid" class="grid"></div>
-      </section>
-
-      <section class="section">
-        <h2>Plan Comparison</h2>
-        <div id="plans-grid" class="grid"></div>
-      </section>
-    </div>
-
-    <div id="detail-drawer" class="drawer">
-      <h3 id="drawer-title"></h3>
-      <p id="drawer-desc"></p>
-      <div class="price" id="drawer-price"></div>
-      <div class="meta" id="drawer-meta"></div>
-      <div class="actions">
-        <button id="drawer-buy" class="buy">Buy now</button>
-        <button onclick="closeDrawer()" class="secondary">Close</button>
-      </div>
-    </div>
-
-    <script src="/static/miniapp.js"></script>
-  </body>
-</html>
-"""
-    return HTMLResponse(content=html)
+    return HTMLResponse(content=MINI_APP_TEMPLATE.read_text(encoding="utf-8"))
 
 
 async def _telegram_webhook(
@@ -521,9 +452,10 @@ async def admin_sync_catalog(
         await session.commit()
         return JSONResponse({"ok": True, "synced": synced})
     except Exception as exc:
+        logger.exception("admin.sync_catalog_failed", error=str(exc), admin_telegram_id=admin_user.telegram_id)
         await admin_service.record_sync_run("stripe", "failed", str(exc), admin_user.id)
         await session.commit()
-        raise
+        raise HTTPException(status_code=502, detail="Stripe sync failed") from exc
 
 
 
@@ -546,6 +478,8 @@ async def admin_patch_product(
     session: AsyncSession = Depends(get_db_session),
 ) -> JSONResponse:
     admin_user = await _require_admin(session, admin_telegram_id)
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="Invalid payload")
     service = AdminService(session)
     product = await service.set_product_overrides(sku, payload)
     if product is None:
@@ -562,6 +496,8 @@ async def admin_access_update(
     session: AsyncSession = Depends(get_db_session),
 ) -> JSONResponse:
     admin_user = await _require_admin(session, admin_telegram_id)
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="Invalid payload")
     telegram_id = int(payload.get("telegram_id", 0))
     sku = str(payload.get("sku", "")).strip()
     active = bool(payload.get("active", True))

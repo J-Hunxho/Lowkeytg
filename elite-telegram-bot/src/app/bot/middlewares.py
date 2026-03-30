@@ -10,14 +10,50 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from ..config import settings
+from ..db import AsyncSessionLocal
 from ..models import TelegramProfile
 from ..repos.users import UserRepository
 from ..repos.bans import BanRepository
 from ..services.rate_limit import RateLimiter
+from ..services.retention import RetentionService
 
 Handler = Callable[[TelegramObject, Dict[str, Any]], Awaitable[Any]]
 
 logger = logging.getLogger(__name__)
+
+
+# =========================
+# DATABASE SESSION INJECTION
+# =========================
+class DBSessionMiddleware(BaseMiddleware):
+    """
+    Ensures `data['session']` exists for every update.
+    Reuses upstream-provided session (web/api dependency injection) when present.
+    """
+
+    async def __call__(
+        self,
+        handler: Handler,
+        event: TelegramObject,
+        data: Dict[str, Any],
+    ) -> Any:
+        existing: AsyncSession | None = data.get("session")
+        if existing is not None:
+            return await handler(event, data)
+
+        try:
+            async with AsyncSessionLocal() as session:
+                data["session"] = session
+                try:
+                    result = await handler(event, data)
+                    await session.commit()
+                    return result
+                except Exception:
+                    await session.rollback()
+                    raise
+        except Exception:
+            logger.exception("DBSessionMiddleware failure")
+            return None
 
 
 # =========================
@@ -33,7 +69,11 @@ class UserContextMiddleware(BaseMiddleware):
         session: AsyncSession | None = data.get("session")
         telegram_user = getattr(event, "from_user", None)
 
-        if not session or not telegram_user:
+        if not session:
+            logger.warning("UserContextMiddleware missing session; continuing without context injection")
+            return await handler(event, data)
+
+        if not telegram_user:
             return await handler(event, data)
 
         try:
@@ -76,10 +116,16 @@ class UserContextMiddleware(BaseMiddleware):
             data["profile"] = profile
             data["session"] = session
 
+            try:
+                await RetentionService(session).touch_login(user)
+            except Exception:
+                logger.exception("UserContextMiddleware retention update failed", telegram_id=telegram_user.id)
+
             await session.commit()
 
         except Exception:
             logger.exception("UserContextMiddleware failure")
+            await session.rollback()
             return None
 
         return await handler(event, data)
@@ -118,6 +164,8 @@ class BanMiddleware(BaseMiddleware):
 
         except Exception:
             logger.exception("BanMiddleware failure")
+            if session:
+                await session.rollback()
             return None
 
         return await handler(event, data)

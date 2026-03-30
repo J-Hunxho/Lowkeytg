@@ -1,0 +1,71 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Lowkey Access</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="/static/miniapp.css" />
+  </head>
+  <body>
+    <div class="wrap">
+      <section class="hero panel">
+        <p class="kicker">LOWKEY PRIVATE ACCESS</p>
+        <h1>Member-Only Access Drops</h1>
+        <p id="hero-user" class="sub">Loading member profile…</p>
+        <div class="actions hero-actions">
+          <button id="hero-shop" class="buy">View Access Drops</button>
+          <button id="hero-plans" class="secondary">Membership Tiers</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Membership Tiers</h2>
+        <div id="plans-grid" class="grid"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Priority Releases</h2>
+        <div id="featured-grid" class="grid"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Account Status</h2>
+        <div class="account-row">
+          <div class="stat"><div class="k">Orders</div><div id="orders-count">-</div></div>
+          <div class="stat"><div class="k">Subscriptions</div><div id="subs-count">-</div></div>
+          <div class="stat"><div class="k">Active Access</div><div id="access-count">-</div></div>
+        </div>
+        <p id="account-note" class="notice">Loading account…</p>
+        <div id="admin-actions" class="actions"></div>
+      </section>
+
+      <section class="panel">
+        <h2>AI Concierge</h2>
+        <p class="notice" id="ai-status">Loading AI status…</p>
+        <textarea id="ai-prompt" rows="4" placeholder="Ask for strategy, copy, offer positioning, or support notes."></textarea>
+        <div class="actions"><button id="ai-send" class="buy">Send to Concierge</button></div>
+        <div id="ai-response" class="notice"></div>
+      </section>
+
+      <section class="panel" id="marketplace">
+        <h2>Access Drops</h2>
+        <div id="filters" class="filters"></div>
+        <div id="market-grid" class="grid"></div>
+      </section>
+    </div>
+
+    <div id="detail-drawer" class="drawer">
+      <h3 id="drawer-title"></h3>
+      <p id="drawer-desc"></p>
+      <div class="price" id="drawer-price"></div>
+      <div class="meta" id="drawer-meta"></div>
+      <div class="actions">
+        <button id="drawer-buy" class="buy">Secure Access</button>
+        <button onclick="closeDrawer()" class="secondary">Close</button>
+      </div>
+    </div>
+
+    <script src="/static/miniapp.js"></script>
+  </body>
+</html>

@@ -97,6 +97,9 @@ async def cb_buy(
     session: AsyncSession,
     user: User,
 ) -> None:
+    if not callback.data or ":" not in callback.data:
+        await callback.answer("Invalid checkout request.", show_alert=True)
+        return
     _, sku = callback.data.split(":", 1)
 
     url = await _create_checkout(user=user, session=session, sku=sku)
@@ -120,6 +123,9 @@ async def cb_refresh_catalog(callback: CallbackQuery, session: AsyncSession) -> 
 
 @router.callback_query(F.data.startswith("product:view:"))
 async def cb_product_view(callback: CallbackQuery, session: AsyncSession, user: User) -> None:
+    if not callback.data or callback.data.count(":") < 2:
+        await callback.answer("Invalid product action", show_alert=True)
+        return
     sku = callback.data.split(":", 2)[2]
     service = PaymentsService(session, bot=None)
     products = await service.product_catalog()

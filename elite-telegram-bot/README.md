@@ -133,6 +133,27 @@ Security:
 5. Order/purchase updated and `access_grants` activated.
 6. Subscriptions update grants via subscription webhook events.
 
+### Premium SKU structure (Stripe-backed)
+
+Recommended Stripe price `metadata.sku` values:
+
+- `lowkey_entry` (recurring)
+- `lowkey_select` (recurring)
+- `lowkey_circle` (recurring)
+- `founder_key` (one-time limited status)
+- `ai_concierge_pass` (one-time upsell)
+- `resource_vault` (recurring add-on)
+
+Supported metadata keys for display + delivery behavior:
+
+- `featured`
+- `telegram_category`
+- `delivery_type`
+- `access_role`
+- `channel_announcement`
+- `button_label`
+- `sort_order`
+
 ---
 
 ## Admin controls
@@ -145,6 +166,24 @@ Security:
 - `POST /api/admin/catalog/sync`
 
 All require `X-Admin-Telegram-Id` and admin authorization.
+
+### Admin operations runbook
+
+1. **Sync Stripe products**
+   - Bot command: `/sync_products`
+   - API: `POST /api/admin/catalog/sync`
+2. **Apply product overrides**
+   - API: `PATCH /api/admin/products/{sku}` with safe fields:
+     `featured`, `active`, `button_label`, `channel_announcement`, `sort_order`, `telegram_category`, `title`, `description`.
+3. **Test checkout**
+   - Use `/buy <sku>` or Mini App button.
+   - Verify `orders`, `purchases`, and `access_grants` update after Stripe webhook.
+4. **Verify webhook health**
+   - `GET /health/webhook`
+5. **Verify mini app**
+   - Open `/mini-app` in Telegram WebApp context.
+6. **Verify AI quotas**
+   - Run `/ai` and confirm used/limit counters change.
 
 ---
 
@@ -173,6 +212,7 @@ All require `X-Admin-Telegram-Id` and admin authorization.
 7. Validate `/api/admin/settings/{key}` updates runtime settings.
 8. Validate `/ai` and `/api/ai/chat` enforce plan quota.
 9. Validate Mini App loads catalog/account/AI data.
+10. Validate `/badges` and `/leaderboard` responses for retention loops.
 
 ---
 
@@ -181,4 +221,3 @@ All require `X-Admin-Telegram-Id` and admin authorization.
 - SQLite is acceptable for small deployments; for scale, move to managed Postgres.
 - If `AI_PROVIDER=openai` and key is missing, readiness degrades (`ai_config=invalid`).
 - Webhook reliability depends on public HTTPS reachability and correct secrets.
-
