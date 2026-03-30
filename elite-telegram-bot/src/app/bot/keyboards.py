@@ -43,7 +43,12 @@ def checkout_keyboard(url: str) -> InlineKeyboardMarkup:
 
 
 def referral_keyboard(referral_code: str) -> InlineKeyboardMarkup:
-    link = f"https://t.me/{settings.telegram_bot_username}?start={referral_code}"
+    username = settings.telegram_bot_username
+    link = (
+        f"https://t.me/{username}?start={referral_code}"
+        if username
+        else "https://telegram.org"
+    )
     return InlineKeyboardMarkup(
         inline_keyboard=[[InlineKeyboardButton(text="Copy Referral Link", url=link)]]
     )

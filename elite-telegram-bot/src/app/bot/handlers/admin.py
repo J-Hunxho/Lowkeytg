@@ -17,6 +17,7 @@ from ...services.rate_limit import RateLimiter
 from ...utils.markdown import escape_markdown_v2
 
 router = Router(name="admin")
+router.message.filter(lambda message, user: bool(user and user.is_admin))
 
 
 def _ensure_admin(user: User) -> None:

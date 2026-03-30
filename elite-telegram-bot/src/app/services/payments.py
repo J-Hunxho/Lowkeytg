@@ -57,26 +57,76 @@ class PaymentsService:
             select(Product).where(Product.active.is_(True)).order_by(Product.featured.desc(), Product.sort_order.asc(), Product.id.asc())
         )
         rows = list(result.scalars())
-        return [
-            {
-                "sku": product.sku,
-                "title": product.title,
-                "description": product.description or "",
-                "price_id": product.stripe_price_id,
-                "product_id": product.stripe_product_id,
-                "currency": product.currency,
-                "unit_amount": product.unit_amount,
-                "recurring_interval": product.recurring_interval,
-                "featured": product.featured,
-                "category": product.telegram_category,
-                "purchase_type": product.purchase_type,
-                "button_label": product.button_label or "Buy now",
-                "delivery_type": product.delivery_type,
-                "access_role": product.access_role,
-            }
-            for product in rows
-            if product.stripe_price_id
-        ]
+        return [self._serialize_catalog_product(product) for product in rows if product.stripe_price_id]
+
+    def _catalog_override(self, sku: str) -> dict[str, Any]:
+        return {
+            "lowkey_entry": {
+                "title": "Lowkey Entry",
+                "description": "Low-friction recurring membership for private access drops.",
+                "telegram_category": "membership",
+                "button_label": "Join Entry",
+                "sort_order": 10,
+            },
+            "lowkey_select": {
+                "title": "Lowkey Select",
+                "description": "Expanded perks with stronger AI concierge access.",
+                "telegram_category": "membership",
+                "button_label": "Join Select",
+                "sort_order": 20,
+                "featured": True,
+            },
+            "lowkey_circle": {
+                "title": "Lowkey Circle",
+                "description": "Top recurring tier with priority release access.",
+                "telegram_category": "membership",
+                "button_label": "Join Circle",
+                "sort_order": 30,
+                "featured": True,
+            },
+            "founder_key": {
+                "title": "Founder Key",
+                "description": "Limited one-time status drop with founder identity.",
+                "telegram_category": "status_drop",
+                "button_label": "Claim Founder Key",
+                "sort_order": 40,
+                "featured": True,
+            },
+            "ai_concierge_pass": {
+                "title": "AI Concierge Pass",
+                "description": "One-time premium AI concierge unlock.",
+                "telegram_category": "ai",
+                "button_label": "Unlock Concierge",
+                "sort_order": 50,
+            },
+            "resource_vault": {
+                "title": "Resource Vault",
+                "description": "Recurring add-on for private resource releases.",
+                "telegram_category": "vault",
+                "button_label": "Unlock Vault",
+                "sort_order": 60,
+            },
+        }.get(sku.lower(), {})
+
+    def _serialize_catalog_product(self, product: Product) -> dict[str, Any]:
+        override = self._catalog_override(product.sku)
+        return {
+            "sku": product.sku,
+            "title": override.get("title", product.title),
+            "description": product.description or override.get("description", ""),
+            "price_id": product.stripe_price_id,
+            "product_id": product.stripe_product_id,
+            "currency": product.currency,
+            "unit_amount": product.unit_amount,
+            "recurring_interval": product.recurring_interval,
+            "featured": bool(product.featured or override.get("featured", False)),
+            "category": product.telegram_category or override.get("telegram_category"),
+            "purchase_type": product.purchase_type,
+            "button_label": product.button_label or override.get("button_label", "Buy now"),
+            "delivery_type": product.delivery_type,
+            "access_role": product.access_role,
+            "sort_order": product.sort_order if product.sort_order else override.get("sort_order", 0),
+        }
 
 
     def _legacy_sku_for_price(self, stripe_price_id: str | None) -> str | None:
@@ -166,6 +216,15 @@ class PaymentsService:
             product.sort_order = int(merged_meta.get("sort_order", product.sort_order or 0))
         except (TypeError, ValueError):
             product.sort_order = 0
+        override = self._catalog_override(sku)
+        if override:
+            product.title = str(merged_meta.get("display_title") or product.title or override.get("title"))
+            product.description = product.description or override.get("description")
+            product.telegram_category = product.telegram_category or override.get("telegram_category")
+            product.button_label = product.button_label or override.get("button_label")
+            product.featured = bool(product.featured or override.get("featured", False))
+            if not product.sort_order:
+                product.sort_order = int(override.get("sort_order", 0))
         product.metadata_json = merged_meta
         return product
 

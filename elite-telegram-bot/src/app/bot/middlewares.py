@@ -14,6 +14,7 @@ from ..models import TelegramProfile
 from ..repos.users import UserRepository
 from ..repos.bans import BanRepository
 from ..services.rate_limit import RateLimiter
+from ..services.retention import RetentionService
 
 Handler = Callable[[TelegramObject, Dict[str, Any]], Awaitable[Any]]
 
@@ -76,10 +77,16 @@ class UserContextMiddleware(BaseMiddleware):
             data["profile"] = profile
             data["session"] = session
 
+            try:
+                await RetentionService(session).touch_login(user)
+            except Exception:
+                logger.exception("UserContextMiddleware retention update failed", telegram_id=telegram_user.id)
+
             await session.commit()
 
         except Exception:
             logger.exception("UserContextMiddleware failure")
+            await session.rollback()
             return None
 
         return await handler(event, data)
@@ -118,6 +125,8 @@ class BanMiddleware(BaseMiddleware):
 
         except Exception:
             logger.exception("BanMiddleware failure")
+            if session:
+                await session.rollback()
             return None
 
         return await handler(event, data)
