@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Optional
-
 from aiogram import F, Router
 from aiogram.filters import Command, CommandObject
 from aiogram.types import CallbackQuery, Message
@@ -17,7 +15,7 @@ from ..keyboards import checkout_keyboard, product_detail_keyboard, shop_keyboar
 router = Router(name="payments")
 
 
-async def _create_checkout(*, user: User, session: AsyncSession, sku: str) -> Optional[str]:
+async def _create_checkout(*, user: User, session: AsyncSession, sku: str) -> str | None:
     if not settings.stripe_secret_key:
         logger.warning("checkout.unavailable", reason="stripe_secret_missing", sku=sku)
         return None

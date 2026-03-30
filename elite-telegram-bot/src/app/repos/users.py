@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Optional
-
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,11 +11,11 @@ class UserRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
-    async def get_by_telegram_id(self, telegram_id: int) -> Optional[User]:
+    async def get_by_telegram_id(self, telegram_id: int) -> User | None:
         result = await self.session.execute(select(User).where(User.telegram_id == telegram_id))
         return result.scalars().first()
 
-    async def get_by_referral_code(self, code: str) -> Optional[User]:
+    async def get_by_referral_code(self, code: str) -> User | None:
         result = await self.session.execute(select(User).where(User.referral_code == code))
         return result.scalars().first()
 

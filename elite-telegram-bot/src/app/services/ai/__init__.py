@@ -1,3 +1,3 @@
-from .service import AIService, AIQuotaExceeded, AIServiceDisabled
+from .service import AIQuotaExceeded, AIService, AIServiceDisabled
 
-__all__ = ["AIService", "AIQuotaExceeded", "AIServiceDisabled"]
+__all__ = ["AIQuotaExceeded", "AIService", "AIServiceDisabled"]

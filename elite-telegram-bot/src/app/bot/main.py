@@ -9,7 +9,12 @@ from ..services.rate_limit import RateLimiter
 from .handlers.admin import router as admin_router
 from .handlers.base import router as base_router
 from .handlers.payments import router as payments_router
-from .middlewares import BanMiddleware, DBSessionMiddleware, RateLimitMiddleware, UserContextMiddleware
+from .middlewares import (
+    BanMiddleware,
+    DBSessionMiddleware,
+    RateLimitMiddleware,
+    UserContextMiddleware,
+)
 
 
 def _build_bot() -> Bot | None:

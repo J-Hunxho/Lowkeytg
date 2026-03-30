@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 from sqlalchemy import desc, select
+from sqlalchemy.exc import IntegrityError
 
 from ..models import AccessGrant, User, UserBadge, UserStreak
 
@@ -17,7 +18,16 @@ class RetentionService:
         if streak is None:
             streak = UserStreak(user_id=user.id, current_streak=1, best_streak=1, last_seen_date=today, total_logins=1)
             self.session.add(streak)
-        elif streak.last_seen_date == today:
+            try:
+                await self.session.flush()
+            except IntegrityError:
+                await self.session.rollback()
+                streak = await self.session.scalar(select(UserStreak).where(UserStreak.user_id == user.id))
+                if streak is None:
+                    raise
+
+        if streak.last_seen_date == today:
+            await self._sync_badges(user, streak)
             return streak
         else:
             if streak.last_seen_date == today - timedelta(days=1):
@@ -50,7 +60,13 @@ class RetentionService:
         existing = await self.session.scalar(select(UserBadge).where(UserBadge.user_id == user_id, UserBadge.badge_key == badge_key))
         if existing is not None:
             return
-        self.session.add(UserBadge(user_id=user_id, badge_key=badge_key, label=label, detail=detail))
+        badge = UserBadge(user_id=user_id, badge_key=badge_key, label=label, detail=detail)
+        self.session.add(badge)
+        try:
+            await self.session.flush()
+        except IntegrityError:
+            await self.session.rollback()
+            pass
 
     async def badges_for_user(self, user: User) -> list[UserBadge]:
         rows = await self.session.execute(select(UserBadge).where(UserBadge.user_id == user.id).order_by(desc(UserBadge.granted_at)))

@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Optional
-
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models import User
@@ -14,7 +12,7 @@ class ReferralService:
         self.users = UserRepository(session)
         self.referrals = ReferralRepository(session)
 
-    async def process_referral(self, user: User, referral_code: Optional[str]) -> None:
+    async def process_referral(self, user: User, referral_code: str | None) -> None:
         if not referral_code:
             return
         if user.referred_by_id:

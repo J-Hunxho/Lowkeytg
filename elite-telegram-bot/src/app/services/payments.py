@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 import stripe
 from aiogram import Bot
@@ -28,7 +28,7 @@ from ..repos.orders import OrderRepository
 
 
 class PaymentsService:
-    def __init__(self, session, bot: Optional[Bot] = None) -> None:
+    def __init__(self, session, bot: Bot | None = None) -> None:
         self.session = session
         self.orders = OrderRepository(session)
         self.bot = bot
@@ -125,7 +125,7 @@ class PaymentsService:
             "button_label": product.button_label or override.get("button_label", "Buy now"),
             "delivery_type": product.delivery_type,
             "access_role": product.access_role,
-            "sort_order": product.sort_order if product.sort_order else override.get("sort_order", 0),
+            "sort_order": product.sort_order if product.sort_order is not None else override.get("sort_order", 0),
         }
 
 
@@ -218,13 +218,15 @@ class PaymentsService:
             product.sort_order = 0
         override = self._catalog_override(sku)
         if override:
-            product.title = str(merged_meta.get("display_title") or product.title or override.get("title"))
+            product.title = str(override.get("title") or merged_meta.get("display_title") or product.title)
             product.description = product.description or override.get("description")
             product.telegram_category = product.telegram_category or override.get("telegram_category")
             product.button_label = product.button_label or override.get("button_label")
             product.featured = bool(product.featured or override.get("featured", False))
-            if not product.sort_order:
-                product.sort_order = int(override.get("sort_order", 0))
+            if product.sort_order is None:
+                val = override.get("sort_order")
+                if val is not None:
+                    product.sort_order = int(val)
         product.metadata_json = merged_meta
         return product
 
@@ -277,7 +279,7 @@ class PaymentsService:
             "session_id": checkout_session["id"],
         }
 
-    async def handle_stripe_event(self, payload: dict[str, Any]) -> Optional[Order]:
+    async def handle_stripe_event(self, payload: dict[str, Any]) -> Order | None:
         event_id = payload.get("id")
         event_type = payload.get("type")
         data_object = payload.get("data", {}).get("object", {})
@@ -290,7 +292,7 @@ class PaymentsService:
             return None
         self.session.add(StripeEvent(event_id=event_id, event_type=event_type))
 
-        order: Optional[Order] = None
+        order: Order | None = None
         if event_type in {"product.created", "product.updated"}:
             await self._sync_single_product(data_object)
         elif event_type in {"price.created", "price.updated"}:
@@ -359,7 +361,7 @@ class PaymentsService:
         forced_sku = self._legacy_sku_for_price(price_id)
         await self._upsert_catalog_from_stripe(product_row_to_obj(product_row), price_row_to_obj(price_row), forced_sku=forced_sku)
 
-    async def _handle_checkout_completed(self, session_obj: dict[str, Any]) -> Optional[Order]:
+    async def _handle_checkout_completed(self, session_obj: dict[str, Any]) -> Order | None:
         session_id = session_obj.get("id")
         payment_intent = session_obj.get("payment_intent")
         metadata = session_obj.get("metadata") or {}
@@ -426,8 +428,8 @@ class PaymentsService:
         sub.cancel_at_period_end = bool(sub_obj.get("cancel_at_period_end", False))
         cps = sub_obj.get("current_period_start")
         cpe = sub_obj.get("current_period_end")
-        sub.current_period_start = datetime.fromtimestamp(cps, tz=timezone.utc) if cps else None
-        sub.current_period_end = datetime.fromtimestamp(cpe, tz=timezone.utc) if cpe else None
+        sub.current_period_start = datetime.fromtimestamp(cps, tz=UTC) if cps else None
+        sub.current_period_end = datetime.fromtimestamp(cpe, tz=UTC) if cpe else None
         sub.metadata_json = metadata
 
         telegram_id = metadata.get("telegram_user_id") or metadata.get("telegram_id")
@@ -502,7 +504,7 @@ class PaymentsService:
             with attempt:
                 await self.bot.send_message(chat_id=int(telegram_id), text=message)
 
-    async def _price_id_for_sku(self, sku: str) -> Optional[str]:
+    async def _price_id_for_sku(self, sku: str) -> str | None:
         product = await self.session.scalar(select(Product).where(Product.sku == sku, Product.active.is_(True)))
         return product.stripe_price_id if product and product.stripe_price_id else None
 

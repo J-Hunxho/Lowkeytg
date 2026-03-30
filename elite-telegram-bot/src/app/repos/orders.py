@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import List, Optional
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,15 +19,15 @@ class OrderRepository:
         self.session.add(order)
         return order
 
-    async def get_user_by_telegram_id(self, telegram_id: int) -> Optional[User]:
+    async def get_user_by_telegram_id(self, telegram_id: int) -> User | None:
         result = await self.session.execute(select(User).where(User.telegram_id == telegram_id))
         return result.scalars().first()
 
-    async def get_by_checkout_id(self, checkout_id: str) -> Optional[Order]:
+    async def get_by_checkout_id(self, checkout_id: str) -> Order | None:
         result = await self.session.execute(select(Order).where(Order.stripe_checkout_id == checkout_id))
         return result.scalars().first()
 
-    async def list_for_user(self, user_id: int) -> List[Order]:
+    async def list_for_user(self, user_id: int) -> list[Order]:
         result = await self.session.execute(
             select(Order).where(Order.user_id == user_id).order_by(Order.created_at.desc())
         )
@@ -37,7 +36,7 @@ class OrderRepository:
     async def mark_paid(self, order: Order, payment_intent: str) -> None:
         order.status = "paid"
         order.stripe_payment_intent = payment_intent
-        order.paid_at = datetime.now(timezone.utc)
+        order.paid_at = datetime.now(UTC)
 
     async def mark_failed(self, order: Order) -> None:
         order.status = "failed"

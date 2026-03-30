@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import hashlib
+import hmac
+
 from aiogram import F, Router
 from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, WebAppInfo
@@ -8,11 +11,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...config import settings
 from ...models import User, UserStreak
+from ...services.ai import AIService
+from ...services.ai.service import AIQuotaExceeded, AIServiceDisabled
 from ...services.payments import PaymentsService
 from ...services.referrals import ReferralService
 from ...services.retention import RetentionService
-from ...services.ai import AIService
-from ...services.ai.service import AIQuotaExceeded, AIServiceDisabled
 from ...utils.markdown import escape_markdown_v2
 from ..keyboards import referral_keyboard, shop_keyboard
 
@@ -21,6 +24,22 @@ router = Router(name="base")
 
 def command_aliases(*names: str) -> Command:
     return Command(commands=list(names))
+
+
+def anonymize_telegram_id(telegram_id: int) -> str:
+    """
+    Create a deterministic anonymized label for a telegram_id using HMAC-SHA256.
+    Returns a short non-reversible token (8 characters) for privacy.
+    """
+    secret = settings.telegram_webhook_secret_token
+    if secret is None:
+        # Fallback if no secret is configured (shouldn't happen in production)
+        return f"user_{telegram_id % 10000:04d}"
+
+    secret_bytes = secret.get_secret_value().encode("utf-8")
+    message = str(telegram_id).encode("utf-8")
+    mac = hmac.new(secret_bytes, message, hashlib.sha256)
+    return mac.hexdigest()[:8]
 
 
 def _format_catalog(products: list[dict[str, str]]) -> str:
@@ -101,7 +120,6 @@ async def cmd_help(message: Message, user: User) -> None:
 @router.message(command_aliases("account", "profile"))
 async def cmd_account(message: Message, user: User, session: AsyncSession) -> None:
     username = escape_markdown_v2(user.first_name or user.username or str(user.telegram_id))
-    referral_link = f"https://t.me/{settings.telegram_bot_username}?start={user.referral_code}"
     try:
         ai_status = await AIService(session).usage_snapshot(user)
     except AIServiceDisabled:
@@ -115,7 +133,6 @@ async def cmd_account(message: Message, user: User, session: AsyncSession) -> No
         "👤 *Account*\n\n"
         f"Name: {username}\n"
         f"Referral code: `{user.referral_code}`\n"
-        f"Referral link: {escape_markdown_v2(referral_link)}\n"
         f"Referrals: *{user.referral_count}*\n"
         f"Streak: *{streak.current_streak if streak else 0} day(s)*\n"
         f"Badges: *{escape_markdown_v2(badge_labels)}*\n"
@@ -132,14 +149,16 @@ async def cmd_account(message: Message, user: User, session: AsyncSession) -> No
 
 @router.message(Command("referrals"))
 async def cmd_referrals(message: Message, user: User) -> None:
-    referral_link = f"https://t.me/{settings.telegram_bot_username}?start={user.referral_code}"
     text = (
         "🎯 *Referral Engine*\n\n"
         f"Code: `{user.referral_code}`\n"
-        f"Shares: *{user.referral_count} successful joins*\n"
-        f"Invite link: {escape_markdown_v2(referral_link)}"
+        f"Shares: *{user.referral_count} successful joins*"
     )
-    await message.answer(escape_markdown_v2(text), parse_mode="MarkdownV2")
+    await message.answer(
+        text,
+        parse_mode="MarkdownV2",
+        reply_markup=referral_keyboard(user.referral_code),
+    )
 
 
 @router.message(Command("badges"))
@@ -159,7 +178,7 @@ async def cmd_leaderboard(message: Message, session: AsyncSession) -> None:
     leaders = await service.referral_leaderboard(limit=10)
     lines = []
     for index, member in enumerate(leaders, start=1):
-        handle = member.username or member.first_name or str(member.telegram_id)
+        handle = member.username or member.first_name or anonymize_telegram_id(member.telegram_id)
         lines.append(f"{index}\\. {escape_markdown_v2(handle)} — *{member.referral_count}* referrals")
     text = "📈 *Referral Leaderboard*\n\n" + ("\n".join(lines) if lines else "No leaderboard data yet.")
     await message.answer(text, parse_mode="MarkdownV2")
@@ -182,7 +201,7 @@ async def cmd_shop(message: Message, session: AsyncSession) -> None:
         return
 
     await message.answer(
-        escape_markdown_v2(text),
+        text,
         parse_mode="MarkdownV2",
         reply_markup=shop_keyboard(products),
     )
@@ -265,7 +284,7 @@ async def cmd_status(message: Message, session: AsyncSession) -> None:
         f"Catalog size: *{len(products)} live SKU(s)*\n"
         f"Mini app: *{escape_markdown_v2(public_url_status)}*"
     )
-    await message.answer(escape_markdown_v2(status_text), parse_mode="MarkdownV2")
+    await message.answer(status_text, parse_mode="MarkdownV2")
 
 
 @router.message(Command("webhookstatus"))
@@ -285,7 +304,7 @@ async def cmd_webhookstatus(message: Message) -> None:
         f"Configured: *{configured}*\n"
         f"Pending updates: *{info.pending_update_count}*"
     )
-    await message.answer(escape_markdown_v2(text), parse_mode="MarkdownV2")
+    await message.answer(text, parse_mode="MarkdownV2")
 
 
 @router.message(Command("app"))

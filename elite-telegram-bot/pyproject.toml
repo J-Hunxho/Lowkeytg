@@ -74,6 +74,7 @@ managed = true
 line-length = 100
 target-version = "py311"
 
+[tool.ruff.lint]
 select = [
   "E",   # errors
   "F",   # fatal
@@ -92,7 +93,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101"]
+"tests/*" = ["S101", "S106"]
 
 [tool.ruff.format]
 quote-style = "double"

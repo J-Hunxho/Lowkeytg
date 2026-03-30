@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from collections import deque
 from time import time
-from typing import Deque, Dict, Optional
 
 try:
     from redis.asyncio import Redis
@@ -11,9 +10,9 @@ except ImportError:  # pragma: no cover
 
 
 class RateLimiter:
-    def __init__(self, redis_client: Optional[Redis] = None) -> None:
+    def __init__(self, redis_client: Redis | None = None) -> None:
         self.redis = redis_client
-        self._memory_buckets: Dict[str, Deque[float]] = {}
+        self._memory_buckets: dict[str, deque[float]] = {}
 
     async def allow(self, key: str, limit: int, window_seconds: int) -> bool:
         if limit <= 0:

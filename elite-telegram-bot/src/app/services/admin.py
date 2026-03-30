@@ -5,7 +5,16 @@ from typing import Any
 from sqlalchemy import desc, select
 
 from ..logging import logger
-from ..models import AccessGrant, AdminSetting, Product, Purchase, StripeEvent, StripeSubscription, SyncRun, User
+from ..models import (
+    AccessGrant,
+    AdminSetting,
+    Product,
+    Purchase,
+    StripeEvent,
+    StripeSubscription,
+    SyncRun,
+    User,
+)
 
 
 class AdminService:

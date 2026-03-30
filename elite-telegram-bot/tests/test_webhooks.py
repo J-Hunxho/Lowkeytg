@@ -5,8 +5,8 @@ import json
 
 from httpx import ASGITransport, AsyncClient
 
-from app.bot.main import get_admin_commands, get_private_commands
 from app.bootstrap import safe_sync_bot_state
+from app.bot.main import get_admin_commands, get_private_commands
 from app.config import Settings, settings
 from app.web.api import app
 

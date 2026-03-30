@@ -13,7 +13,6 @@ from tenacity import AsyncRetrying, retry_if_exception_type, stop_after_attempt,
 from .config import Settings, get_settings
 from .logging import configure_logging, logger
 
-
 CommandFactory = Callable[[], list[BotCommand]]
 
 

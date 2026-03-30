@@ -1,23 +1,24 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Awaitable, Callable
 from datetime import datetime
-from typing import Any, Awaitable, Callable, Dict
+from typing import Any
 
 from aiogram import BaseMiddleware
 from aiogram.types import Message, TelegramObject
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
 from ..db import AsyncSessionLocal
 from ..models import TelegramProfile
-from ..repos.users import UserRepository
 from ..repos.bans import BanRepository
+from ..repos.users import UserRepository
 from ..services.rate_limit import RateLimiter
 from ..services.retention import RetentionService
 
-Handler = Callable[[TelegramObject, Dict[str, Any]], Awaitable[Any]]
+Handler = Callable[[TelegramObject, dict[str, Any]], Awaitable[Any]]
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,7 @@ class DBSessionMiddleware(BaseMiddleware):
         self,
         handler: Handler,
         event: TelegramObject,
-        data: Dict[str, Any],
+        data: dict[str, Any],
     ) -> Any:
         existing: AsyncSession | None = data.get("session")
         if existing is not None:
@@ -64,7 +65,7 @@ class UserContextMiddleware(BaseMiddleware):
         self,
         handler: Handler,
         event: TelegramObject,
-        data: Dict[str, Any],
+        data: dict[str, Any],
     ) -> Any:
         session: AsyncSession | None = data.get("session")
         telegram_user = getattr(event, "from_user", None)
@@ -117,7 +118,8 @@ class UserContextMiddleware(BaseMiddleware):
             data["session"] = session
 
             try:
-                await RetentionService(session).touch_login(user)
+                async with session.begin_nested():
+                    await RetentionService(session).touch_login(user)
             except Exception:
                 logger.exception("UserContextMiddleware retention update failed", telegram_id=telegram_user.id)
 
@@ -139,7 +141,7 @@ class BanMiddleware(BaseMiddleware):
         self,
         handler: Handler,
         event: TelegramObject,
-        data: Dict[str, Any],
+        data: dict[str, Any],
     ) -> Any:
         session: AsyncSession | None = data.get("session")
         user = data.get("user")
@@ -182,7 +184,7 @@ class RateLimitMiddleware(BaseMiddleware):
         self,
         handler: Handler,
         event: TelegramObject,
-        data: Dict[str, Any],
+        data: dict[str, Any],
     ) -> Any:
         user = data.get("user")
         bot = data.get("bot")
@@ -233,7 +235,7 @@ class SubscriptionMiddleware(BaseMiddleware):
         self,
         handler: Handler,
         event: TelegramObject,
-        data: Dict[str, Any],
+        data: dict[str, Any],
     ) -> Any:
         user = data.get("user")
         profile = data.get("profile")

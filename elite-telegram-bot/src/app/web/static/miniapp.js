@@ -94,27 +94,60 @@ function renderCatalogCards(items, nodeId, emptyText) {
   const root = el(nodeId);
   root.innerHTML = '';
   if (!items.length) {
-    root.innerHTML = `<div class="empty">${emptyText}</div>`;
+    const emptyDiv = document.createElement('div');
+    emptyDiv.className = 'empty';
+    emptyDiv.textContent = emptyText;
+    root.appendChild(emptyDiv);
     return;
   }
   items.forEach((item) => {
     const card = document.createElement('div');
     card.className = 'card';
-    card.innerHTML = `
-      <h3>${item.title}</h3>
-      <p>${item.description || ''}</p>
-      <div class="price">${formatMoney(item)}</div>
-      <div class="meta">
-        ${item.featured ? '<span class="badge">Featured</span>' : ''}
-        <span>${item.recurring_interval || 'one-time'}</span>
-      </div>
-      <div class="actions">
-        <button class="secondary" data-detail="${item.sku}">Details</button>
-        <button class="buy" data-buy="${item.sku}">${item.button_label || 'Secure Access'}</button>
-      </div>
-    `;
-    card.querySelector('[data-detail]').onclick = () => openDrawer(item);
-    card.querySelector('[data-buy]').onclick = () => beginCheckout(item);
+
+    const h3 = document.createElement('h3');
+    h3.textContent = item.title;
+    card.appendChild(h3);
+
+    const p = document.createElement('p');
+    p.textContent = item.description || '';
+    card.appendChild(p);
+
+    const priceDiv = document.createElement('div');
+    priceDiv.className = 'price';
+    priceDiv.textContent = formatMoney(item);
+    card.appendChild(priceDiv);
+
+    const metaDiv = document.createElement('div');
+    metaDiv.className = 'meta';
+    if (item.featured) {
+      const badgeSpan = document.createElement('span');
+      badgeSpan.className = 'badge';
+      badgeSpan.textContent = 'Featured';
+      metaDiv.appendChild(badgeSpan);
+    }
+    const intervalSpan = document.createElement('span');
+    intervalSpan.textContent = item.recurring_interval || 'one-time';
+    metaDiv.appendChild(intervalSpan);
+    card.appendChild(metaDiv);
+
+    const actionsDiv = document.createElement('div');
+    actionsDiv.className = 'actions';
+
+    const detailBtn = document.createElement('button');
+    detailBtn.className = 'secondary';
+    detailBtn.setAttribute('data-detail', item.sku);
+    detailBtn.textContent = 'Details';
+    detailBtn.onclick = () => openDrawer(item);
+    actionsDiv.appendChild(detailBtn);
+
+    const buyBtn = document.createElement('button');
+    buyBtn.className = 'buy';
+    buyBtn.setAttribute('data-buy', item.sku);
+    buyBtn.textContent = item.button_label || 'Secure Access';
+    buyBtn.onclick = () => beginCheckout(item);
+    actionsDiv.appendChild(buyBtn);
+
+    card.appendChild(actionsDiv);
     root.appendChild(card);
   });
 }

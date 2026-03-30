@@ -5,7 +5,6 @@ import sys
 
 from .config import get_settings
 
-
 _LOGGER_NAME = "elite-bot"
 
 

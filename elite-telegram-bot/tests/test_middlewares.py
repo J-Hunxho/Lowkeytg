@@ -8,7 +8,8 @@ from app.bot.middlewares import DBSessionMiddleware
 
 
 class _Marker:
-    called = False
+    def __init__(self):
+        self.called = False
 
 
 def test_db_session_middleware_injects_session_when_missing() -> None:

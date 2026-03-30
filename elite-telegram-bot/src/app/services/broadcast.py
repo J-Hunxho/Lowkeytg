@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Iterable, Sequence
 
 from aiogram import Bot
 from sqlalchemy.ext.asyncio import AsyncSession

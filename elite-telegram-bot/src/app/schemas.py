@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
 
-from pydantic import BaseModel, Field, ConfigDict
-
+from pydantic import BaseModel, ConfigDict, Field
 
 # -------------------------
 # Health
@@ -45,8 +43,8 @@ class CheckoutSessionResponse(BaseModel):
 class StripeWebhookEvent(BaseModel):
     id: str = Field(..., description="Stripe event ID")
     type: str = Field(..., description="Stripe event type")
-    created: Optional[int] = Field(None, description="Unix timestamp")
-    livemode: Optional[bool] = Field(None, description="Live/test mode flag")
+    created: int | None = Field(None, description="Unix timestamp")
+    livemode: bool | None = Field(None, description="Live/test mode flag")
 
 
 # -------------------------
@@ -59,7 +57,7 @@ class OrderRead(BaseModel):
     sku: str
     status: str
     created_at: datetime
-    paid_at: Optional[datetime] = None
+    paid_at: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

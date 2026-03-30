@@ -12,8 +12,8 @@ from fastapi import Body, Depends, FastAPI, Header, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import func, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..bootstrap import safe_sync_bot_state
@@ -21,7 +21,15 @@ from ..bot.main import get_private_commands
 from ..config import get_settings
 from ..db import check_database_health, close_engine
 from ..logging import configure_logging, logger
-from ..models import AccessGrant, AdminSetting, Order, StripeSubscription, User, UserBadge, UserStreak
+from ..models import (
+    AccessGrant,
+    AdminSetting,
+    Order,
+    StripeSubscription,
+    User,
+    UserBadge,
+    UserStreak,
+)
 from ..schemas import (
     AIChatRequest,
     AIChatResponse,
@@ -85,7 +93,7 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title="Elite Telegram Bot", version="0.6.0", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory="src/app/web/static"), name="static")
-MINI_APP_TEMPLATE = Path("src/app/web/templates/miniapp.html")
+MINI_APP_TEMPLATE = Path(__file__).resolve().parent / "templates" / "miniapp.html"
 
 
 @app.exception_handler(RequestValidationError)

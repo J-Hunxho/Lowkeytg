@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 
 from aiogram import Bot, Dispatcher
 from sqlalchemy.ext.asyncio import AsyncSession

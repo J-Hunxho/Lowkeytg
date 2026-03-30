@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import Optional, Tuple
 from urllib.parse import urlsplit, urlunsplit
 
 from pydantic import AnyUrl, SecretStr, field_validator
@@ -20,39 +19,39 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     telegram_enabled: bool = False
-    telegram_bot_token: Optional[SecretStr] = None
-    telegram_bot_username: Optional[str] = None
-    telegram_webhook_secret_token: Optional[SecretStr] = None
-    public_base_url: Optional[AnyUrl] = None
-    railway_static_url: Optional[str] = None
-    railway_public_domain: Optional[str] = None
+    telegram_bot_token: SecretStr | None = None
+    telegram_bot_username: str | None = None
+    telegram_webhook_secret_token: SecretStr | None = None
+    public_base_url: AnyUrl | None = None
+    railway_static_url: str | None = None
+    railway_public_domain: str | None = None
     webhook_path: str = "/webhook/telegram"
     set_webhook_on_start: bool = False
     fail_fast_on_startup: bool = False
 
     stripe_enabled: bool = False
-    stripe_secret_key: Optional[SecretStr] = None
-    stripe_webhook_secret: Optional[SecretStr] = None
+    stripe_secret_key: SecretStr | None = None
+    stripe_webhook_secret: SecretStr | None = None
     ai_enabled: bool = False
     ai_provider: str = "openai"
     ai_default_model: str = "gpt-4o-mini"
-    ai_openai_api_key: Optional[SecretStr] = None
+    ai_openai_api_key: SecretStr | None = None
     ai_openai_base_url: str = "https://api.openai.com/v1"
     ai_openai_timeout_seconds: int = 30
 
-    price_id_founder_key: Optional[str] = None
-    price_id_vip_month: Optional[str] = None
-    price_id_vip_year: Optional[str] = None
+    price_id_founder_key: str | None = None
+    price_id_vip_month: str | None = None
+    price_id_vip_year: str | None = None
 
     database_url: str = "sqlite+aiosqlite:///./data.db"
-    redis_url: Optional[str] = None
+    redis_url: str | None = None
     notify_admin_on_sale: bool = True
 
-    admin_user_ids: Tuple[int, ...] = ()
+    admin_user_ids: tuple[int, ...] = ()
 
     @field_validator("admin_user_ids", mode="before")
     @classmethod
-    def parse_admins(cls, value: str | int | list | Tuple[int, ...] | None) -> Tuple[int, ...]:
+    def parse_admins(cls, value: str | int | list | tuple[int, ...] | None) -> tuple[int, ...]:
         if not value and value != 0:
             return ()
         if isinstance(value, int):
@@ -128,14 +127,25 @@ class Settings(BaseSettings):
         normalized_path = "/" + "/".join(part for part in path.split("/") if part)
         return f"{base}{normalized_path}"
 
+    def validate_public_url_available(self) -> None:
+        """Validate that a public URL is configured for features requiring absolute URLs."""
+        if not self.public_base_url and not self.railway_static_url and not self.railway_public_domain:
+            raise RuntimeError("PUBLIC_BASE_URL/RAILWAY_STATIC_URL/RAILWAY_PUBLIC_DOMAIN required for URL-dependent features")
+
     def validate_telegram(self) -> None:
+        import logging
         missing: list[str] = []
         if not self.telegram_bot_token:
             missing.append("TELEGRAM_BOT_TOKEN")
         if not self.telegram_webhook_secret_token:
             missing.append("TELEGRAM_WEBHOOK_SECRET_TOKEN")
-        if self.set_webhook_on_start and not self.public_base_url and not self.railway_static_url and not self.railway_public_domain:
-            missing.append("PUBLIC_BASE_URL/RAILWAY_STATIC_URL/RAILWAY_PUBLIC_DOMAIN")
+        if self.set_webhook_on_start:
+            try:
+                self.validate_public_url_available()
+            except RuntimeError as exc:
+                missing.append(str(exc).split("required")[0].strip())
+        if not self.telegram_bot_username:
+            logging.getLogger(__name__).warning("TELEGRAM_BOT_USERNAME is not configured; referral links will be unavailable")
         if missing:
             raise RuntimeError(f"Telegram configuration incomplete: {', '.join(missing)}")
 

@@ -10,7 +10,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...config import get_settings
 from ...logging import logger
-from ...models import AIRequestLog, AIUsageDaily, AccessGrant, AdminSetting, Product, StripeSubscription, User
+from ...models import (
+    AccessGrant,
+    AdminSetting,
+    AIRequestLog,
+    AIUsageDaily,
+    Product,
+    StripeSubscription,
+    User,
+)
 from .providers.base import AIProvider, AIProviderResponse
 from .providers.echo import EchoAIProvider
 from .providers.openai import OpenAIProvider
