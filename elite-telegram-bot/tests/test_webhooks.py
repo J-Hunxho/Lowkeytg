@@ -5,7 +5,7 @@ import json
 
 from httpx import ASGITransport, AsyncClient
 
-from app.bot.main import get_private_commands
+from app.bot.main import get_admin_commands, get_private_commands
 from app.bootstrap import safe_sync_bot_state
 from app.config import Settings, settings
 from app.web.api import app
@@ -34,7 +34,7 @@ def test_readyz() -> None:
 def test_mini_app_route() -> None:
     response = asyncio.run(_request("GET", "/mini-app"))
     assert response.status_code == 200
-    assert "Lowkey Marketplace" in response.text
+    assert "Member-Only Access Drops" in response.text
 
 
 def test_telegram_webhook_secret_validation() -> None:
@@ -84,18 +84,24 @@ def test_webhook_url_is_normalized_for_railway_domains() -> None:
     assert cfg.webhook_url == "https://example.up.railway.app/telegram"
 
 
-def test_private_commands_expose_aliases_and_ops_commands() -> None:
+def test_private_commands_are_member_focused() -> None:
     commands = {command.command for command in get_private_commands()}
     assert {
         "account",
         "app",
         "ai",
+        "buy",
+        "orders",
         "plans",
-        "sync_products",
-        "reload_settings",
-        "broadcast_product",
-        "status",
+        "shop",
+        "support",
     }.issubset(commands)
+    assert "sync_products" not in commands
+
+
+def test_admin_commands_contain_ops_actions() -> None:
+    commands = {command.command for command in get_admin_commands()}
+    assert {"sync_products", "reload_settings", "broadcast_product", "status"}.issubset(commands)
 
 
 def test_admin_sync_products_requires_admin_header() -> None:
@@ -109,6 +115,8 @@ def test_account_state_endpoint() -> None:
     payload = response.json()
     assert payload["orders_count"] == 0
     assert payload["is_admin"] is False
+    assert payload["streak_days"] == 0
+    assert payload["badges"] == []
 
 
 def test_admin_dashboard_requires_admin() -> None:

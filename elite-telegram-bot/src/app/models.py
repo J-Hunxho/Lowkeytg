@@ -40,6 +40,8 @@ class User(Base):
     grants: Mapped[List["AccessGrant"]] = relationship("AccessGrant", back_populates="user")
     subscriptions: Mapped[List["StripeSubscription"]] = relationship("StripeSubscription", back_populates="user")
     telegram_profile: Mapped[Optional["TelegramProfile"]] = relationship("TelegramProfile", back_populates="user", uselist=False)
+    badges: Mapped[List["UserBadge"]] = relationship("UserBadge", back_populates="user")
+    streak: Mapped[Optional["UserStreak"]] = relationship("UserStreak", back_populates="user", uselist=False)
 
 
 class Referral(Base):
@@ -287,3 +289,31 @@ class MessageRecord(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     user: Mapped[User] = relationship("User", back_populates="messages")
+
+
+class UserBadge(Base):
+    __tablename__ = "user_badges"
+    __table_args__ = (UniqueConstraint("user_id", "badge_key", name="uq_user_badges_user_key"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    badge_key: Mapped[str] = mapped_column(String(64), index=True)
+    label: Mapped[str] = mapped_column(String(128))
+    detail: Mapped[Optional[str]] = mapped_column(Text())
+    granted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    user: Mapped[User] = relationship("User", back_populates="badges")
+
+
+class UserStreak(Base):
+    __tablename__ = "user_streaks"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), unique=True, index=True)
+    current_streak: Mapped[int] = mapped_column(Integer, default=1)
+    best_streak: Mapped[int] = mapped_column(Integer, default=1)
+    last_seen_date: Mapped[date] = mapped_column(Date(), index=True)
+    total_logins: Mapped[int] = mapped_column(Integer, default=1)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    user: Mapped[User] = relationship("User", back_populates="streak")

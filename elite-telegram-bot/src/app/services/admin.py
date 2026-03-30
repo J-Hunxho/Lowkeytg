@@ -58,18 +58,27 @@ class AdminService:
         if product is None:
             return None
 
-        for field in [
-            "featured",
-            "active",
-            "button_label",
-            "channel_announcement",
-            "sort_order",
-            "telegram_category",
-            "title",
-            "description",
-        ]:
-            if field in payload:
-                setattr(product, field, payload[field])
+        if "featured" in payload:
+            product.featured = bool(payload["featured"])
+        if "active" in payload:
+            product.active = bool(payload["active"])
+        if "button_label" in payload:
+            product.button_label = str(payload["button_label"]).strip()[:128] or None
+        if "channel_announcement" in payload:
+            product.channel_announcement = str(payload["channel_announcement"]).strip()[:2000] or None
+        if "sort_order" in payload:
+            try:
+                product.sort_order = max(0, int(payload["sort_order"]))
+            except (TypeError, ValueError):
+                product.sort_order = 0
+        if "telegram_category" in payload:
+            product.telegram_category = str(payload["telegram_category"]).strip()[:128] or None
+        if "title" in payload:
+            title = str(payload["title"]).strip()
+            if title:
+                product.title = title[:255]
+        if "description" in payload:
+            product.description = str(payload["description"]).strip()[:5000] or None
 
         logger.info("admin.product_override_updated", sku=sku, keys=sorted(payload.keys()))
         return product

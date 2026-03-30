@@ -3,12 +3,14 @@ from __future__ import annotations
 from aiogram import F, Router
 from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, WebAppInfo
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...config import settings
-from ...models import User
+from ...models import User, UserStreak
 from ...services.payments import PaymentsService
 from ...services.referrals import ReferralService
+from ...services.retention import RetentionService
 from ...services.ai import AIService
 from ...services.ai.service import AIQuotaExceeded, AIServiceDisabled
 from ...utils.markdown import escape_markdown_v2
@@ -23,9 +25,14 @@ def command_aliases(*names: str) -> Command:
 
 def _format_catalog(products: list[dict[str, str]]) -> str:
     if not products:
-        return "🛒 Store is temporarily unavailable. Stripe product pricing is not configured yet."
-    lines = [f"• {product['title']} — `{product['sku']}` — {product['description']}" for product in products]
-    return "🛒 *Available Products*\n\n" + "\n".join(lines)
+        return "Access Drops are temporarily unavailable while pricing is being finalized."
+    lines = [
+        "• "
+        f"{escape_markdown_v2(product['title'])} — `{escape_markdown_v2(product['sku'])}`\n  "
+        f"{escape_markdown_v2(product['description'])}"
+        for product in products
+    ]
+    return "🛍 *Access Drops*\n\n" + "\n".join(lines)
 
 
 @router.message(CommandStart())
@@ -43,8 +50,9 @@ async def cmd_start(
 
     name = escape_markdown_v2(user.first_name or user.username or "friend")
     text = (
-        f"👋 Welcome, {name}!\n\n"
-        "Use /help to explore commands, /shop to browse products, /plans to compare offers, and /account to view your profile."
+        f"👋 Welcome, {name}.\n\n"
+        "Lowkey is your private access layer for curated drops, member tiers, and concierge-grade support.\n\n"
+        "Start with /plans, browse /shop, and open /app for the premium dashboard."
     )
     await message.answer(text, parse_mode="MarkdownV2")
 
@@ -52,24 +60,21 @@ async def cmd_start(
 @router.message(Command("help"))
 async def cmd_help(message: Message, user: User) -> None:
     commands = [
-        "👤 *User*",
-        "/start — onboarding flow",
-        "/help — command list",
-        "/account — account overview",
+        "👤 *Member Surface*",
+        "/start — private entry",
+        "/shop — access drops",
+        "/plans — membership tiers",
+        "/account — account status",
         "/orders — order history",
-        "/plans — compare plans",
-        "/referrals — referral performance",
-        "/support — support contact",
-        "",
-        "🛍 *Products*",
-        "/shop — browse products",
-        "/products — live product list",
-        "/buy <sku> — purchase",
+        "/badges — member badges",
+        "/leaderboard — referral leaderboard",
+        "/support — concierge support",
+        "/ai — AI concierge",
         "/app — launch mini app",
+        "/buy <sku> — checkout by SKU",
         "",
-        "🛠 *System*",
-        "/status — stack readiness summary",
-        "/webhookstatus — webhook health",
+        "🎯 *Growth*",
+        "/referrals — referral performance",
     ]
 
     if user.is_admin:
@@ -81,14 +86,16 @@ async def cmd_help(message: Message, user: User) -> None:
                 "/sync_products — sync Stripe catalog",
                 "/reload_settings — check runtime env",
                 "/broadcast_product <sku> — product campaign",
-                "/broadcast <message>",
+                "/broadcast <message> — send announcement",
                 "/stats — system stats",
                 "/users — user count",
+                "/status — stack readiness",
+                "/webhookstatus — webhook health",
             ]
         )
 
     text = "📖 *Available Commands*\n\n" + "\n".join(commands)
-    await message.answer(escape_markdown_v2(text), parse_mode="MarkdownV2")
+    await message.answer(text, parse_mode="MarkdownV2")
 
 
 @router.message(command_aliases("account", "profile"))
@@ -99,6 +106,10 @@ async def cmd_account(message: Message, user: User, session: AsyncSession) -> No
         ai_status = await AIService(session).usage_snapshot(user)
     except AIServiceDisabled:
         ai_status = {"tier": "disabled", "used_today": 0, "daily_limit": 0}
+    retention = RetentionService(session)
+    badges = await retention.badges_for_user(user)
+    streak = await session.scalar(select(UserStreak).where(UserStreak.user_id == user.id))
+    badge_labels = ", ".join(badge.label for badge in badges[:3]) if badges else "No badges yet"
 
     text = (
         "👤 *Account*\n\n"
@@ -106,6 +117,8 @@ async def cmd_account(message: Message, user: User, session: AsyncSession) -> No
         f"Referral code: `{user.referral_code}`\n"
         f"Referral link: {escape_markdown_v2(referral_link)}\n"
         f"Referrals: *{user.referral_count}*\n"
+        f"Streak: *{streak.current_streak if streak else 0} day(s)*\n"
+        f"Badges: *{escape_markdown_v2(badge_labels)}*\n"
         f"Admin: *{'yes' if user.is_admin else 'no'}*\n"
         f"AI tier: *{ai_status['tier']}* ({ai_status['used_today']}/{ai_status['daily_limit']} used)"
     )
@@ -129,10 +142,33 @@ async def cmd_referrals(message: Message, user: User) -> None:
     await message.answer(escape_markdown_v2(text), parse_mode="MarkdownV2")
 
 
+@router.message(Command("badges"))
+async def cmd_badges(message: Message, user: User, session: AsyncSession) -> None:
+    service = RetentionService(session)
+    badges = await service.badges_for_user(user)
+    if not badges:
+        await message.answer("🏅 No badges yet. Keep your streak active and refer new members.")
+        return
+    lines = [f"• *{escape_markdown_v2(item.label)}* — {escape_markdown_v2(item.detail or '')}" for item in badges]
+    await message.answer("🏅 *Badges*\n\n" + "\n".join(lines), parse_mode="MarkdownV2")
+
+
+@router.message(Command("leaderboard"))
+async def cmd_leaderboard(message: Message, session: AsyncSession) -> None:
+    service = RetentionService(session)
+    leaders = await service.referral_leaderboard(limit=10)
+    lines = []
+    for index, member in enumerate(leaders, start=1):
+        handle = member.username or member.first_name or str(member.telegram_id)
+        lines.append(f"{index}\\. {escape_markdown_v2(handle)} — *{member.referral_count}* referrals")
+    text = "📈 *Referral Leaderboard*\n\n" + ("\n".join(lines) if lines else "No leaderboard data yet.")
+    await message.answer(text, parse_mode="MarkdownV2")
+
+
 @router.message(Command("support"))
 async def cmd_support(message: Message) -> None:
     await message.answer(
-        f"Support is handled by {settings.support_contact}. Use /status before opening a ticket so the team gets context fast."
+        f"Support is handled by {settings.support_contact}. Share your SKU and issue summary for priority handling."
     )
 
 
@@ -161,11 +197,11 @@ async def cmd_pricing(message: Message, session: AsyncSession) -> None:
         return
 
     lines = [
-        f"• *{product['title']}* — SKU `{product['sku']}`\n  {product['description']}"
+        f"• *{escape_markdown_v2(product['title'])}* — SKU `{escape_markdown_v2(product['sku'])}`\n  {escape_markdown_v2(product['description'])}"
         for product in products
     ]
-    text = "💠 *Pricing Overview*\n\n" + "\n".join(lines) + "\n\nUse /buy <sku> to start checkout instantly."
-    await message.answer(escape_markdown_v2(text), parse_mode="MarkdownV2")
+    text = "💠 *Membership Tiers*\n\n" + "\n".join(lines) + "\n\nUse /buy <sku> for instant checkout."
+    await message.answer(text, parse_mode="MarkdownV2")
 
 
 

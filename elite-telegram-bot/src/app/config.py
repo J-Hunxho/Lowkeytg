@@ -134,7 +134,7 @@ class Settings(BaseSettings):
             missing.append("TELEGRAM_BOT_TOKEN")
         if not self.telegram_webhook_secret_token:
             missing.append("TELEGRAM_WEBHOOK_SECRET_TOKEN")
-        if not self.public_base_url and not self.railway_static_url and not self.railway_public_domain:
+        if self.set_webhook_on_start and not self.public_base_url and not self.railway_static_url and not self.railway_public_domain:
             missing.append("PUBLIC_BASE_URL/RAILWAY_STATIC_URL/RAILWAY_PUBLIC_DOMAIN")
         if missing:
             raise RuntimeError(f"Telegram configuration incomplete: {', '.join(missing)}")
