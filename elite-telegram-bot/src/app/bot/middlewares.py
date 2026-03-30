@@ -34,7 +34,10 @@ class UserContextMiddleware(BaseMiddleware):
         session: AsyncSession | None = data.get("session")
         telegram_user = getattr(event, "from_user", None)
 
-        if not session or not telegram_user:
+        if not session:
+            raise RuntimeError("Sessuion middleware not initialized")
+            
+        if not telegram_user:
             return await handler(event, data)
 
         try:
