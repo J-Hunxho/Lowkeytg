@@ -1,0 +1,84 @@
+openapi: 3.0.0
+info:
+  title: LowkeyBots API
+  version: 1.0.0
+  description: Secure API schema for Lowkey bot deployment and payment system
+
+servers:
+  - url: https://lowkey.luxury
+
+paths:
+
+  /functions/v1/check-subscription:
+    post:
+      summary: Verify user subscription status
+      requestBody:
+        required: false
+      responses:
+        '200':
+          description: Subscription status returned
+
+  /functions/v1/create-checkout:
+    post:
+      summary: Create Stripe checkout session
+      requestBody:
+        required: true
+      responses:
+        '200':
+          description: Checkout session created
+
+  /functions/v1/customer-portal:
+    post:
+      summary: Open Stripe customer portal
+      responses:
+        '200':
+          description: Portal link returned
+
+  /functions/v1/deploy-bot:
+    post:
+      summary: Deploy a user bot instance
+      requestBody:
+        required: true
+      responses:
+        '200':
+          description: Bot deployed successfully
+
+  /functions/v1/god-mode-admin:
+    post:
+      summary: Admin control endpoint (restricted)
+      responses:
+        '200':
+          description: Admin action executed
+
+  /functions/v1/god-mode-api:
+    post:
+      summary: Core god-mode API access
+      responses:
+        '200':
+          description: God mode response
+
+  /functions/v1/god-mode-orchestrator:
+    post:
+      summary: Autonomous orchestration engine
+      responses:
+        '200':
+          description: Task executed
+
+  /functions/v1/stripe-webhook:
+    post:
+      summary: Stripe webhook receiver
+      requestBody:
+        required: true
+      responses:
+        '200':
+          description: Webhook processed
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - BearerAuth: []
